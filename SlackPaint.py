@@ -42,6 +42,7 @@ class EmojiGridApp:
         self.settings_frame = tk.Frame(self.root)
         self.settings_frame.pack()
 
+        # --- Grid size controls ---
         grid_size_frame = tk.Frame(self.settings_frame)
         grid_size_frame.pack()
         tk.Label(grid_size_frame, text="Rows").pack(side="left")
@@ -54,26 +55,35 @@ class EmojiGridApp:
         self.col_entry.pack(side="left")
         tk.Button(grid_size_frame, text="Update Grid", command=self.update_grid_size).pack(side="left", padx=5)
 
+        # --- Scrollable emoji mapping panel ---
         self.mapping_container = tk.Frame(self.settings_frame)
         self.mapping_container.pack()
 
         self.mapping_frame = tk.Frame(self.mapping_container)
         self.mapping_frame.pack(fill="x")
-        self.mapping_visible = True
 
-        self.scroll_canvas = tk.Canvas(self.mapping_frame, height=160)
-        self.scroll_frame = tk.Frame(self.scroll_canvas)
+        self.scroll_canvas = tk.Canvas(self.mapping_frame, height=160, borderwidth=0, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.mapping_frame, orient="vertical", command=self.scroll_canvas.yview)
         self.scroll_canvas.configure(yscrollcommand=scrollbar.set)
 
-        self.scroll_canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
-        self.scroll_canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        self.scroll_canvas.pack(side="left", fill="x", expand=True)
+
+        self.scroll_frame = tk.Frame(self.scroll_canvas)
+        self.scroll_canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
+
+        # Update scroll region dynamically
         self.scroll_frame.bind("<Configure>", lambda e: self.scroll_canvas.configure(scrollregion=self.scroll_canvas.bbox("all")))
 
+        # Scroll with mouse wheel when hovered
+        self.scroll_canvas.bind("<Enter>", lambda e: self.scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel))
+        self.scroll_canvas.bind("<Leave>", lambda e: self.scroll_canvas.unbind_all("<MouseWheel>"))
+
+        # --- Build and adjust emoji panel ---
         self.emoji_entries = {}
         self.build_emoji_entries()
 
+        # --- Buttons ---
         button_frame = tk.Frame(self.settings_frame)
         button_frame.pack()
         tk.Button(button_frame, text="Add Emoji", command=self.add_emoji).pack(side="left", padx=2)
@@ -83,10 +93,14 @@ class EmojiGridApp:
 
         tk.Label(self.settings_frame, text="Press 0-9 to select emoji index.").pack()
 
+    def _on_mousewheel(self, event):
+        self.scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
     def build_emoji_entries(self):
         for widget in self.scroll_frame.winfo_children():
             widget.destroy()
         self.emoji_entries = {}
+        
         for i in range(self.emoji_count):
             row = tk.Frame(self.scroll_frame)
             row.pack(anchor="w")
@@ -113,6 +127,12 @@ class EmojiGridApp:
             remove_btn.pack(side="left")
 
             self.emoji_entries[i] = (emoji, color_box)
+
+        # Resize scroll_canvas based on content:
+        visible_rows = min(self.emoji_count, 5)
+        row_height = 30  # Approx height per row (adjust as needed)
+        new_height = visible_rows * row_height
+        self.scroll_canvas.config(height=new_height)
 
     def remove_emoji(self, index):
         if index == 0:
