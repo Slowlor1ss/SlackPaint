@@ -18,7 +18,7 @@ def check_for_update():
             answer = messagebox.askyesno("Update Available", f"A new version ({latest_version}) is available. Visit GitHub to download?")
             if answer:
                 import webbrowser
-                webbrowser.open("https://github.com/Slowlor1ss/SlackPaint")
+                webbrowser.open("https://github.com/Slowlor1ss/SlackPaint/releases")
     except Exception as e:
         print("Version check failed:", e)
 
