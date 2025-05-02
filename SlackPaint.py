@@ -7,7 +7,7 @@ import os
 
 import urllib.request
 
-__version__ = "v0.6.0-alpha"
+__version__ = "v0.7.0-alpha"
 
 def check_for_update():
     try:
@@ -53,6 +53,8 @@ class EmojiGridApp:
         self.canvas = tk.Canvas(root, highlightthickness=0)
         self.canvas.pack()
 
+        self.active_button = None
+
         self.setup_settings_panel()
         self.setup_bindings()
         self.reset_grid(initialize=True)
@@ -75,6 +77,7 @@ class EmojiGridApp:
         self.col_entry.insert(0, str(self.cols))
         self.col_entry.pack(side="left")
         tk.Button(grid_size_frame, text="Update Grid", command=self.update_grid_size).pack(side="left", padx=5)
+        tk.Button(grid_size_frame, text="Clear Grid", command=self.confirm_reset_grid).pack(side="left", padx=5)
 
         # --- Scrollable emoji mapping panel ---
         self.mapping_container = tk.Frame(self.settings_frame)
@@ -83,7 +86,7 @@ class EmojiGridApp:
         self.mapping_frame = tk.Frame(self.mapping_container)
         self.mapping_frame.pack(fill="x")
 
-        self.scroll_canvas = tk.Canvas(self.mapping_frame, height=160, borderwidth=0, highlightthickness=0)
+        self.scroll_canvas = tk.Canvas(self.mapping_frame, width=450, height=160, borderwidth=0, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.mapping_frame, orient="vertical", command=self.scroll_canvas.yview)
         self.scroll_canvas.configure(yscrollcommand=scrollbar.set)
 
@@ -118,50 +121,69 @@ class EmojiGridApp:
         self.export_msg = tk.Label(self.settings_frame, text="", fg="green")
         self.export_msg.pack()
 
+        tk.Label(self.settings_frame, text="Use left mouse to draw right to remove (idx 0).").pack()
         tk.Label(self.settings_frame, text="Press 0-9 to select emoji index.").pack()
+
+    # There's probably a way better way of doing this lol
+    def confirm_reset_grid(self):
+        if messagebox.askyesno("Confirm Clear", "Are you sure you want to clear the entire grid?"):
+            self.reset_grid(initialize=True)
 
     def _on_mousewheel(self, event):
         self.scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def build_emoji_entries(self):
+        # Clear previous widgets
         for widget in self.scroll_frame.winfo_children():
             widget.destroy()
+
         self.emoji_entries = {}
         self.emoji_frames = {}
+
+        num_cols = 2  # Two wide columns
+
         for i in range(self.emoji_count):
-            row = tk.Frame(self.scroll_frame, bd=2, relief="solid")
-            row.pack(anchor="w", pady=1, padx=2, fill="x")
-            self.emoji_frames[i] = row
+            row = i // num_cols
+            col = i % num_cols
 
-            tk.Label(row, text=f"{i}").pack(side="left")
-            emoji = tk.Entry(row, width=15)
+            # Container frame for each emoji entry
+            frame = tk.Frame(self.scroll_frame, bd=2, relief="solid", padx=10, pady=1)
+            frame.grid(row=row, column=col, sticky="w")
+            self.emoji_frames[i] = frame
+
+            # ID Label
+            tk.Label(frame, text=f"{i}", width=1).pack(side="left")
+
+            # Emoji text entry
+            emoji = tk.Entry(frame, width=15)
             emoji.insert(0, self.emoji_mappings.get(i, (":white_square:", "#ffffff"))[0])
-            emoji.pack(side="left")
+            emoji.pack(side="left", padx=4)
 
-            #color_hex = self.emoji_mappings.get(i, (":white_square:", "#ffffff"))[1]
-            #color_box = tk.Label(row, bg=color_hex, width=3, relief="raised")
-            #color_box.pack(side="left", padx=5)
-
+            # Color or image display
             value = self.emoji_mappings.get(i, (":white_square:", "#ffffff"))[1]
             if isinstance(value, str) and value.startswith("#"):
-                color_box = tk.Label(row, bg=value, width=3, relief="raised")
+                color_box = tk.Label(frame, bg=value, width=3, relief="raised")
             else:
-                color_box = tk.Label(row, image=value, width=25, height=25, relief="raised")
-                color_box.image = value  # Keep a reference so it doesn't get garbage collected
-            color_box.pack(side="left", padx=5)
+                color_box = tk.Label(frame, image=value, width=25, height=25, relief="raised")
+                color_box.image = value  # Prevent GC
 
+            color_box.pack(side="left", padx=6)
+
+            # Color/image selection logic
             def choose_color_or_image(i=i, color_box=color_box):
                 current = self.emoji_mappings[i][1]
                 if isinstance(current, str) and current.startswith("#"):
-                    # It's a color — show color picker
                     result = askcolor(title="Choose Color", initialcolor=current)
                     if result[1]:
                         self.emoji_mappings[i] = (self.emoji_entries[i][0].get(), result[1])
                         color_box.config(bg=result[1])
                         self.refresh_grid_colors()
                 else:
-                    # It's an image — let user pick a new image
-                    path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
+                    path = filedialog.askopenfilename(
+                        initialdir="/",
+                        title="Select An Image",
+                        filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.gif"), ("Any", ".*")]
+                    )
                     if path:
                         from PIL import Image, ImageTk
                         img = Image.open(path)
@@ -173,19 +195,23 @@ class EmojiGridApp:
                         color_box.image = tk_img
                         self.refresh_grid_colors()
 
-            color_box.bind("<Button-1>", lambda e, i=i: choose_color_or_image(i))
+            # Left-click to change color/image
+            color_box.bind("<Button-1>", lambda e, i=i, cb=color_box: choose_color_or_image(i, cb))
+            # Right-click to remove emoji
+            color_box.bind("<Button-3>", lambda e, i=i: self.remove_emoji(i))
 
-            remove_btn = tk.Button(row, text="-", command=lambda i=i: self.remove_emoji(i))
-            remove_btn.pack(side="left")
+            # Remove button
+            remove_btn = tk.Button(frame, text="-", command=lambda i=i: self.remove_emoji(i), width=2)
+            remove_btn.pack(side="left", padx=4)
 
             self.emoji_entries[i] = (emoji, color_box)
+
         self.update_selection_highlight()
 
-        # Resize scroll_canvas based on content:
-        visible_rows = min(self.emoji_count, 5)
-        row_height = 35  # Approx height per row (adjust as needed)
-        new_height = visible_rows * row_height
-        self.scroll_canvas.config(height=new_height)
+        # Adjust scroll canvas height for 2-column layout
+        visible_rows = min((self.emoji_count + 1) // 2, 4)
+        row_height = 40 + 1 # +1 for padding
+        self.scroll_canvas.config(height=visible_rows * row_height)
 
     def update_selection_highlight(self):
         for i, frame in self.emoji_frames.items():
@@ -195,7 +221,10 @@ class EmojiGridApp:
                 frame.config(highlightthickness=0, relief="flat")
 
     def add_image(self):
-        path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
+        # TODO: this is prone to bugs we have duplicated code path = filedialog.askopenfilename... make this a function or something
+        #path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
+        #path = filedialog.askopenfilename(initialdir="/", title="Select An Image", filetypes=(("jpeg files", "*.jpg;*.jpeg"), ("gif files", "*.gif*"), ("png files", "*.png")))
+        path = filedialog.askopenfilename(initialdir="/", title="Select An Image", filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.gif"),("Any", ".*")])
         if not path:
             return
         img = Image.open(path)
@@ -255,8 +284,9 @@ class EmojiGridApp:
         for i, (emoji_entry, color_box) in self.emoji_entries.items():
             emoji_val = emoji_entry.get().strip()
             color_val = color_box["bg"]
-            if isinstance(self.emoji_mappings[i][1], str) and self.emoji_mappings[i] != (emoji_val, color_val):
-                self.emoji_mappings[i] = (emoji_val, color_val)
+            current_color_or_image = self.emoji_mappings[i][1]
+            if self.emoji_mappings[i][0] != emoji_val:
+                self.emoji_mappings[i] = (emoji_val, current_color_or_image)
                 changed = True
         if changed:
             self.refresh_grid_colors()
@@ -308,13 +338,27 @@ class EmojiGridApp:
                     rect = self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
                 else:
                     rect = self.canvas.create_rectangle(x1, y1, x2, y2, fill="white", outline="gray")
-                    self.canvas.create_image(x1, y1, anchor="nw", image=color)
+                    img_id = self.canvas.create_image(x1, y1, anchor="nw", image=color)
+                    self.canvas_images[(r, c)] = img_id
                 self.rects[(r, c)] = rect
 
     def setup_bindings(self):
-        self.canvas.bind("<Button-1>", self.paint_at)
-        self.canvas.bind("<B1-Motion>", self.paint_at)
+        self.canvas.bind("<Button-1>", self.on_left_click)
+        self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
+        self.canvas.bind("<Button-3>", self.on_right_click)
+        self.canvas.bind("<B3-Motion>", self.on_mouse_drag)
         self.root.bind("<Key>", self.handle_keypress)
+
+    def on_left_click(self, event):
+        self.active_button = 1
+        self.paint_at(event)
+
+    def on_right_click(self, event):
+        self.active_button = 3
+        self.paint_at(event)
+
+    def on_mouse_drag(self, event):
+        self.paint_at(event)
 
     def refocus_canvas(self, event):
         widget = self.root.winfo_containing(event.x_root, event.y_root)
@@ -325,19 +369,26 @@ class EmojiGridApp:
         col = event.x // self.cell_size
         row = event.y // self.cell_size
         if 0 <= row < self.rows and 0 <= col < self.cols:
-            self.grid[row][col] = self.current_color
+            if self.active_button == 1:  # Left click = paint
+                new_idx = self.current_color
+            elif self.active_button == 3:  # Right click = erase
+                new_idx = 0
+            else:
+                return
+
+            self.grid[row][col] = new_idx
 
             # Remove existing image if present
             if (row, col) in self.canvas_images:
                 self.canvas.delete(self.canvas_images[(row, col)])
                 del self.canvas_images[(row, col)]
 
-            color = self.emoji_mappings.get(self.current_color, (":?", "black"))[1]
-            if isinstance(color, str):
-                self.canvas.itemconfig(self.rects[(row, col)], fill=color)
+            fill = self.emoji_mappings.get(new_idx, (":?", "black"))[1]
+            if isinstance(fill, str):
+                self.canvas.itemconfig(self.rects[(row, col)], fill=fill)
             else:
                 self.canvas.itemconfig(self.rects[(row, col)], fill="white")
-                img_id = self.canvas.create_image(col * self.cell_size, row * self.cell_size, anchor="nw", image=color)
+                img_id = self.canvas.create_image(col * self.cell_size, row * self.cell_size, anchor="nw", image=fill)
                 self.canvas_images[(row, col)] = img_id
 
     def handle_keypress(self, event):
@@ -369,8 +420,26 @@ class EmojiGridApp:
         path = filedialog.askopenfilename()
         if not path:
             return
+
         with open(path, "r") as f:
             lines = [line.strip() for line in f.readlines()]
+
+        flat_emojis = [":" + p + ":" for line in lines for p in line.split(":") if p]
+        unique_emojis = []
+        for e in flat_emojis:
+            if e not in unique_emojis:
+                unique_emojis.append(e)
+
+        # Build new mappings
+        self.emoji_mappings = {
+            i: (emoji, self.random_pastel_color()) for i, emoji in enumerate(unique_emojis)
+        }
+        self.emoji_count = len(self.emoji_mappings)
+
+        # Update UI
+        self.build_emoji_entries()
+
+        # Update grid size
         self.rows = len(lines)
         self.cols = max(len(line.split(":")) // 2 for line in lines)
         self.row_entry.delete(0, tk.END)
@@ -378,13 +447,14 @@ class EmojiGridApp:
         self.row_entry.insert(0, str(self.rows))
         self.col_entry.insert(0, str(self.cols))
         self.reset_grid()
+
+        # Fill grid
         for r, line in enumerate(lines):
             parts = [":" + p + ":" for p in line.split(":") if p]
             for c, part in enumerate(parts):
                 for idx, (emoji, _) in self.emoji_mappings.items():
                     if part == emoji:
                         self.grid[r][c] = idx
-                        #self.paint_at(tk.Event())
                         break
         self.refresh_grid_colors()
 
