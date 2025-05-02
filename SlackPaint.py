@@ -5,6 +5,22 @@ from PIL import Image, ImageTk
 import random
 import os
 
+import urllib.request
+
+def check_for_update():
+    try:
+        remote_url = "https://raw.githubusercontent.com/Slowlor1ss/SlackPaint/main/version.txt"
+        with urllib.request.urlopen(remote_url, timeout=5) as response:
+            latest_version = response.read().decode().strip()
+        if latest_version != __version__:
+            answer = messagebox.askyesno("Update Available", f"A new version ({latest_version}) is available. Visit GitHub to download?")
+            if answer:
+                import webbrowser
+                webbrowser.open("https://github.com/Slowlor1ss/SlackPaint")
+    except Exception as e:
+        print("Version check failed:", e)
+
+
 MAX_EMOJIS = 10
 DEFAULT_ROWS = 20
 DEFAULT_COLS = 20
@@ -15,6 +31,8 @@ emoji_palette = {
     1: (":racoon_king:", "#cccccc"),
     2: (":party_raccoon:", "#ffaa55"),
 }
+
+__version__ = "1.0.0"
 
 class EmojiGridApp:
     def __init__(self, root):
@@ -373,5 +391,6 @@ class EmojiGridApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    check_for_update()
     app = EmojiGridApp(root)
     root.mainloop()
