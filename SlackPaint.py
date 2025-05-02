@@ -91,6 +91,10 @@ class EmojiGridApp:
         tk.Button(button_frame, text="Save", command=self.save).pack(side="left", padx=2)
         tk.Button(button_frame, text="Load", command=self.load).pack(side="left", padx=2)
 
+        # --- Export confirmation message ---
+        self.export_msg = tk.Label(self.settings_frame, text="", fg="green")
+        self.export_msg.pack()
+
         tk.Label(self.settings_frame, text="Press 0-9 to select emoji index.").pack()
 
     def _on_mousewheel(self, event):
@@ -233,7 +237,15 @@ class EmojiGridApp:
     def export(self):
         self.update_palette()
         output = "\n".join("".join(self.emoji_mappings[cell][0] for cell in row) for row in self.grid)
-        print("\n--- Slack Art ---\n" + output)
+
+        # Copy to clipboard
+        self.root.clipboard_clear()
+        self.root.clipboard_append(output)
+        self.root.update()  # Ensures clipboard is updated immediately
+
+        # Show confirmation message
+        self.export_msg.config(text="Copied to clipboard!")
+        self.root.after(2000, lambda: self.export_msg.config(text=""))  # Clear message after 2 seconds
 
     def save(self):
         self.update_palette()
