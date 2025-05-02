@@ -7,6 +7,8 @@ import os
 
 import urllib.request
 
+__version__ = "v0.6.0-alpha"
+
 def check_for_update():
     try:
         remote_url = "https://raw.githubusercontent.com/Slowlor1ss/SlackPaint/main/version.txt"
@@ -20,7 +22,6 @@ def check_for_update():
     except Exception as e:
         print("Version check failed:", e)
 
-
 MAX_EMOJIS = 10
 DEFAULT_ROWS = 20
 DEFAULT_COLS = 20
@@ -31,8 +32,6 @@ emoji_palette = {
     1: (":racoon_king:", "#cccccc"),
     2: (":party_raccoon:", "#ffaa55"),
 }
-
-__version__ = "1.0.0"
 
 class EmojiGridApp:
     def __init__(self, root):
