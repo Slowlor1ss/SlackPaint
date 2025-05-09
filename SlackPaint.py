@@ -5,10 +5,19 @@ from PIL import Image, ImageTk
 import random
 import os
 
+#from TooltipHelper import SLACK_EMOJI_HELP_TEXT, SLACK_EMOJI_CODE
+
+import json
+from io import BytesIO
+import urllib.request
+import re
+
+import webbrowser
 import urllib.request
 
-__version__ = "v0.7.0-alpha"
+__version__ = "v0.1.0-beta"
 
+# TODO: add a better update system, possibly one that updates the app for you?
 def check_for_update():
     try:
         remote_url = "https://raw.githubusercontent.com/Slowlor1ss/SlackPaint/main/version.txt"
@@ -17,7 +26,6 @@ def check_for_update():
         if latest_version != __version__:
             answer = messagebox.askyesno("Update Available", f"A new version ({latest_version}) is available. Visit GitHub to download?")
             if answer:
-                import webbrowser
                 webbrowser.open("https://github.com/Slowlor1ss/SlackPaint/releases")
     except Exception as e:
         print("Version check failed:", e)
@@ -28,7 +36,7 @@ DEFAULT_COLS = 20
 CELL_SIZE = 25
 
 emoji_palette = {
-    0: (":white_square:", "#ffffff"),
+    0: (":_:", "#ffffff"),
     1: (":racoon_king:", "#cccccc"),
     2: (":party_raccoon:", "#ffaa55"),
 }
@@ -49,6 +57,10 @@ class EmojiGridApp:
 
         self.emoji_mappings = emoji_palette.copy()
         self.emoji_count = len(self.emoji_mappings)
+        # Track which emojis were added from Slack
+        self.slack_emoji_indices = set()
+
+        self.slack_emojis = None  # To store the loaded Slack emoji mapping
 
         self.canvas = tk.Canvas(root, highlightthickness=0)
         self.canvas.pack()
@@ -113,9 +125,59 @@ class EmojiGridApp:
         button_frame.pack()
         tk.Button(button_frame, text="Add Emoji", command=self.add_emoji).pack(side="left", padx=2)
         tk.Button(button_frame, text="Add Image", command=self.add_image).pack(side="left", padx=2)
-        tk.Button(button_frame, text="Export", command=self.export).pack(side="left", padx=2)
-        tk.Button(button_frame, text="Save", command=self.save).pack(side="left", padx=2)
-        tk.Button(button_frame, text="Load", command=self.load).pack(side="left", padx=2)
+        # tk.Button(button_frame, text="Add Slack Emoji", command=self.add_slack_emoji).pack(side="left", padx=2)
+
+        # Create a frame for the Slack button and its help icon
+        slack_frame = tk.Frame(button_frame)
+        slack_frame.pack(side="left", padx=2)
+        
+        slack_button = tk.Button(slack_frame, text="Add Slack Emoji", command=self.add_slack_emoji)
+        slack_button.pack(side="left")
+
+        # Add help icon
+        help_icon = tk.Label(slack_frame, text="?", font=("Arial", 8), 
+                            bg="#4a7a8c", fg="white", width=1, height=1,
+                            relief="raised", cursor="question_arrow")
+        help_icon.pack(side="left", padx=1)
+
+        # Add tooltip to the help icon
+        # slack_help_text = ("To use Slack emojis, you need to export them as a JSON file.\n\n"
+        #                 "1. Visit your Slack workspace in a browser\n"
+        #                 "   https://YourworkspaceName.slack.com/customize/emoji\n"
+        #                 "2. Open DevTools (F12 or Ctrl+Shift+I)\n"
+        #                 "3. In the Console tab, paste the code\n"
+        #                 "   (Code gets copied when clicking this question mark)\n"
+        #                 "4. Copy the output and save it as a .json file\n"
+        #                 "5. Use this file when clicking 'Add Slack Emoji'")
+        
+        # Function to copy code to clipboard and show a message
+        def copy_code_to_clipboard():
+            answer = messagebox.askyesno("Redirection", f"This will Redirect you to the github page from where you can copy said neccecary code to make the JSON of app slack emojis")
+            if answer:
+                webbrowser.open("https://github.com/Slowlor1ss/SlackPaint/blob/main/ScriptToGetSlackEmojis.js")
+            #code_to_copy = SLACK_EMOJI_CODE
+            #self.root.clipboard_clear()
+            #self.root.clipboard_append(code_to_copy)
+            #messagebox.showinfo("Code Copied", "The Slack emoji fetch code has been copied to your clipboard!")
+            
+        # Add clipboard functionality to the help icon
+        help_icon.bind("<Button-1>", lambda e: copy_code_to_clipboard())
+        
+        help_text = ("To use Slack emojis, you need to export them as a JSON file.\n\n"
+                        "1. Visit your Slack workspace in a browser\n"
+                        "   https://YourworkspaceName.slack.com/customize/emoji\n"
+                        "2. Open DevTools (F12 or Ctrl+Shift+I)\n"
+                        "3. In the Console tab, paste the code\n"
+                        "   (You can copy the code from the github page clicking the question mark will redirect you)\n"
+                        "4. Save the output file\n"
+                        "5. Use this file when clicking 'Add Slack Emoji'")
+        self.create_tooltip(help_icon, help_text)
+
+        button_frame2 = tk.Frame(self.settings_frame)
+        button_frame2.pack()
+        tk.Button(button_frame2, text="Export", command=self.export).pack(side="left", padx=2)
+        tk.Button(button_frame2, text="Save", command=self.save).pack(side="left", padx=2)
+        tk.Button(button_frame2, text="Load", command=self.load).pack(side="left", padx=2)
 
         # --- Export confirmation message ---
         self.export_msg = tk.Label(self.settings_frame, text="", fg="green")
@@ -123,6 +185,33 @@ class EmojiGridApp:
 
         tk.Label(self.settings_frame, text="Use left mouse to draw right to remove (idx 0).").pack()
         tk.Label(self.settings_frame, text="Press 0-9 to select emoji index.").pack()
+
+    def create_tooltip(self, widget, text):
+        """Create a tooltip for a given widget"""
+        def enter(event):
+            x, y, _, _ = widget.bbox("insert")
+            x += widget.winfo_rootx() + 25
+            y += widget.winfo_rooty() + 25
+            
+            # Create a toplevel window
+            tip = tk.Toplevel(widget)
+            tip.wm_overrideredirect(True)
+            tip.wm_geometry(f"+{x}+{y}")
+            
+            label = tk.Label(tip, text=text, justify=tk.LEFT,
+                            background="#ffffe0", relief=tk.SOLID, borderwidth=1,
+                            padx=6, pady=3, wraplength=350)
+            label.pack()
+            
+            widget._tooltip = tip
+            
+        def leave(event):
+            if hasattr(widget, "_tooltip"):
+                widget._tooltip.destroy()
+                del widget._tooltip
+                
+        widget.bind("<Enter>", enter)
+        widget.bind("<Leave>", leave)
 
     # There's probably a way better way of doing this lol
     def confirm_reset_grid(self):
@@ -140,7 +229,7 @@ class EmojiGridApp:
         self.emoji_entries = {}
         self.emoji_frames = {}
 
-        num_cols = 2  # Two wide columns
+        num_cols = 2  # Two wide column
 
         for i in range(self.emoji_count):
             row = i // num_cols
@@ -172,13 +261,25 @@ class EmojiGridApp:
             # Color/image selection logic
             def choose_color_or_image(i=i, color_box=color_box):
                 current = self.emoji_mappings[i][1]
-                if isinstance(current, str) and current.startswith("#"):
+                
+                # Check if this is a Slack emoji
+                if i in self.slack_emoji_indices:
+                    # If it's a Slack emoji, open the Slack emoji search dialog
+                    if self.slack_emojis is not None:
+                        self.show_slack_emoji_search_for_update(i, color_box)
+                    else:
+                        # This should never happen! but just in case it does...
+                        messagebox.showinfo("Slack Emojis Not Loaded", 
+                                           "Please load Slack emoji JSON first using 'Add Slack Emoji' button.")
+                elif isinstance(current, str) and current.startswith("#"):
+                    # Handle color selection
                     result = askcolor(title="Choose Color", initialcolor=current)
                     if result[1]:
                         self.emoji_mappings[i] = (self.emoji_entries[i][0].get(), result[1])
                         color_box.config(bg=result[1])
                         self.refresh_grid_colors()
                 else:
+                    # Handle regular image selection
                     path = filedialog.askopenfilename(
                         initialdir="/",
                         title="Select An Image",
@@ -213,6 +314,125 @@ class EmojiGridApp:
         row_height = 40 + 1 # +1 for padding
         self.scroll_canvas.config(height=visible_rows * row_height)
 
+    # New method for updating a specific Slack emoji
+    def show_slack_emoji_search_for_update(self, index, color_box):
+        search_window = tk.Toplevel(self.root)
+        search_window.title("Select New Slack Emoji")
+        search_window.geometry("300x400")
+        search_var = tk.StringVar()
+        search_entry = tk.Entry(search_window, textvariable=search_var)
+        search_entry.pack(fill="x", padx=5, pady=5)
+    
+        listbox = tk.Listbox(search_window)
+        listbox.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        def update_list(*args):
+            search_term = search_var.get().lower()
+            listbox.delete(0, tk.END)
+            
+            if not search_term:
+                # If empty search, show all emojis
+                for key in self.slack_emojis:
+                    listbox.insert(tk.END, key)
+                return
+                
+            # Find matches based on different search patterns
+            matches = set()
+            
+            for key in self.slack_emojis:
+                key_lower = key.lower()
+                # Remove colons from emoji name
+                clean_key = key_lower.strip(':')
+                
+                # Direct substring match
+                if search_term in clean_key:
+                    matches.add(key)
+                    continue
+                    
+                # Handle compound words with separators
+                # For example: "notlikethis" should match "not_like_this"
+                clean_key_no_separators = clean_key.replace('-', '').replace('_', '')
+                
+                if search_term in clean_key_no_separators:
+                    matches.add(key)
+                    continue
+                    
+                # For search terms with multiple words, check if they appear in the emoji name
+                if '_' in search_term or '-' in search_term:
+                    search_parts = search_term.replace('-', '_').split('_')
+                    clean_key_parts = clean_key.replace('-', '_').split('_')
+                    
+                    # Check if all search parts are in the emoji parts
+                    if all(any(sp in part for part in clean_key_parts) for sp in search_parts):
+                        matches.add(key)
+                    continue
+                    
+                # For things like "catnot" matching "notlikethis-cat", we'll use a more targeted approach
+                if len(search_term) >= 4:
+                    # Split search term into potential pieces (first half and second half)
+                    mid = len(search_term) // 2
+                    first_half = search_term[:mid]
+                    second_half = search_term[mid:]
+                    
+                    # Check if both halves appear in the emoji name (in any order)
+                    if (first_half in clean_key and second_half in clean_key) or \
+                    (first_half in clean_key_no_separators and second_half in clean_key_no_separators):
+                        matches.add(key)
+                        continue
+            
+            # Sort matches for better UX
+            sorted_matches = sorted(matches)
+            for match in sorted_matches:
+                listbox.insert(tk.END, match)
+                
+        # Add a results count label
+        result_label = tk.Label(search_window, text="")
+        result_label.pack(fill="x", padx=5)
+        
+        def on_search_update(*args):
+            update_list()
+            count = listbox.size()
+            result_label.config(text=f"{count} results found")
+        
+        search_var.trace("w", on_search_update)
+        on_search_update()
+        
+        def on_select(event):
+            if not listbox.curselection():
+                return
+            selection = listbox.get(listbox.curselection())
+            url = self.slack_emojis[selection]
+            # Update the existing emoji instead of adding a new one
+            self.update_slack_emoji(index, selection, url, color_box)
+            search_window.destroy()
+            
+        listbox.bind("<Double-Button-1>", on_select)
+        search_entry.focus()
+
+    # New method to update an existing slack emoji
+    def update_slack_emoji(self, index, name, url, color_box):
+        try:
+            with urllib.request.urlopen(url) as response:
+                img_data = response.read()
+            img = Image.open(BytesIO(img_data)).resize((self.cell_size, self.cell_size), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(img)
+            
+            # Update the emoji mapping
+            emoji_name = f":{name}:"
+            self.emoji_mappings[index] = (emoji_name, tk_img)
+            
+            # Update the UI
+            self.emoji_entries[index][0].delete(0, tk.END)
+            self.emoji_entries[index][0].insert(0, emoji_name)
+            color_box.config(image=tk_img)
+            color_box.image = tk_img  # Keep a reference
+            
+            # Refresh the grid
+            self.refresh_grid_colors()
+            self.canvas.focus_set()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load emoji image:\n{e}")
+
     def update_selection_highlight(self):
         for i, frame in self.emoji_frames.items():
             if i == self.current_color:
@@ -240,6 +460,133 @@ class EmojiGridApp:
         img = img.resize((size, size), Image.LANCZOS)
         return img
 
+    def add_slack_emoji(self):
+        if self.slack_emojis is None:
+            path = filedialog.askopenfilename(title="Select Slack Emoji JSON", filetypes=[("JSON files", "*.json")])
+            if not path:
+                return
+            with open(path, "r") as f:
+                self.slack_emojis = json.load(f)
+            messagebox.showinfo("Loaded", f"{len(self.slack_emojis)} Slack emojis loaded.")
+            return
+
+        # Show search dialog
+        self.show_slack_emoji_search()
+
+    # I really need to clean this up, I wanted a decent search functionality but at what cost
+    # this has some problems like just typing _ is being handled as if its nothing we need to fix that
+    # but its fine for now as it still shows up high in the list so its manageable for now 
+    def show_slack_emoji_search(self):
+        search_window = tk.Toplevel(self.root)
+        search_window.title("Search Slack Emoji")
+        search_window.geometry("300x400")
+        search_var = tk.StringVar()
+        search_entry = tk.Entry(search_window, textvariable=search_var)
+        search_entry.pack(fill="x", padx=5, pady=5)
+    
+        listbox = tk.Listbox(search_window)
+        listbox.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        def update_list(*args):
+            search_term = search_var.get().lower()
+            listbox.delete(0, tk.END)
+            
+            if not search_term:
+                # If empty search, show all emojis
+                for key in self.slack_emojis:
+                    listbox.insert(tk.END, key)
+                return
+                
+            # Find matches based on different search patterns
+            matches = set()
+            
+            for key in self.slack_emojis:
+                key_lower = key.lower()
+                # Remove colons from emoji name
+                clean_key = key_lower.strip(':')
+                
+                # Direct substring match (original behavior)
+                if search_term in clean_key:
+                    matches.add(key)
+                    continue
+                    
+                # Handle compound words with separators
+                # For example: "notlikethis" should match "not_like_this"
+                clean_key_no_separators = clean_key.replace('-', '').replace('_', '')
+                
+                if search_term in clean_key_no_separators:
+                    matches.add(key)
+                    continue
+                    
+                # For search terms with multiple words, check if they appear in the emoji name
+                if '_' in search_term or '-' in search_term:
+                    search_parts = search_term.replace('-', '_').split('_')
+                    clean_key_parts = clean_key.replace('-', '_').split('_')
+                    
+                    # Check if all search parts are in the emoji parts
+                    if all(any(sp in part for part in clean_key_parts) for sp in search_parts):
+                        matches.add(key)
+                    continue
+                    
+                # For things like "catnot" matching "notlikethis-cat", we'll use a more targeted approach
+                if len(search_term) >= 4:
+                    # Split search term into potential pieces (first half and second half)
+                    mid = len(search_term) // 2
+                    first_half = search_term[:mid]
+                    second_half = search_term[mid:]
+                    
+                    # Check if both halves appear in the emoji name (in any order)
+                    if (first_half in clean_key and second_half in clean_key) or \
+                    (first_half in clean_key_no_separators and second_half in clean_key_no_separators):
+                        matches.add(key)
+                        continue
+            
+            # Sort matches for better UX
+            sorted_matches = sorted(matches)
+            for match in sorted_matches:
+                listbox.insert(tk.END, match)
+                
+        # Add a results count label
+        result_label = tk.Label(search_window, text="")
+        result_label.pack(fill="x", padx=5)
+        
+        def on_search_update(*args):
+            update_list()
+            count = listbox.size()
+            result_label.config(text=f"{count} results found")
+        
+        search_var.trace("w", on_search_update)
+        on_search_update()
+        
+        def on_select(event):
+            if not listbox.curselection():
+                return
+            selection = listbox.get(listbox.curselection())
+            url = self.slack_emojis[selection]
+            self.add_slack_emoji_to_palette(selection, url)
+            search_window.destroy()
+            
+        listbox.bind("<Double-Button-1>", on_select)
+        search_entry.focus()
+
+    def add_slack_emoji_to_palette(self, name, url):
+        if self.emoji_count >= MAX_EMOJIS:
+            messagebox.showinfo("Limit reached", f"Maximum of {MAX_EMOJIS} emojis allowed.")
+            return
+        try:
+            with urllib.request.urlopen(url) as response:
+                img_data = response.read()
+            img = Image.open(BytesIO(img_data)).resize((self.cell_size, self.cell_size), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(img)
+            self.emoji_mappings[self.emoji_count] = (f":{name}:", tk_img)
+            # Mark this as a Slack emoji
+            self.slack_emoji_indices.add(self.emoji_count)
+            self.emoji_count += 1
+            self.build_emoji_entries()
+            self.canvas.focus_set()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load emoji image:\n{e}")
+
     def remove_emoji(self, index):
         if index == 0:
             messagebox.showinfo("Cannot remove", "Cannot remove the default emoji.")
@@ -255,6 +602,16 @@ class EmojiGridApp:
 
         # Step 2: Delete the mapping and re-index
         del self.emoji_mappings[index]
+        
+        # Update slack_emoji_indices
+        new_slack_indices = set()
+        for old_idx in self.slack_emoji_indices:
+            if old_idx < index:
+                new_slack_indices.add(old_idx)
+            elif old_idx > index:
+                new_slack_indices.add(old_idx - 1)
+        self.slack_emoji_indices = new_slack_indices
+        
         self.emoji_mappings = {
             new_i: self.emoji_mappings[old_i]
             for new_i, old_i in enumerate(sorted(self.emoji_mappings))
