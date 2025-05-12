@@ -15,7 +15,7 @@ import re
 import webbrowser
 import urllib.request
 
-__version__ = "v0.1.0-beta"
+__version__ = "v0.1.1-beta"
 
 # TODO: add a better update system, possibly one that updates the app for you?
 def check_for_update():
