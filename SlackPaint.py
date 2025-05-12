@@ -124,8 +124,6 @@ class EmojiGridApp:
         button_frame = tk.Frame(self.settings_frame)
         button_frame.pack()
         tk.Button(button_frame, text="Add Emoji", command=self.add_emoji).pack(side="left", padx=2)
-        tk.Button(button_frame, text="Add Image", command=self.add_image).pack(side="left", padx=2)
-        # tk.Button(button_frame, text="Add Slack Emoji", command=self.add_slack_emoji).pack(side="left", padx=2)
 
         # Create a frame for the Slack button and its help icon
         slack_frame = tk.Frame(button_frame)
@@ -139,16 +137,6 @@ class EmojiGridApp:
                             bg="#4a7a8c", fg="white", width=1, height=1,
                             relief="raised", cursor="question_arrow")
         help_icon.pack(side="left", padx=1)
-
-        # Add tooltip to the help icon
-        # slack_help_text = ("To use Slack emojis, you need to export them as a JSON file.\n\n"
-        #                 "1. Visit your Slack workspace in a browser\n"
-        #                 "   https://YourworkspaceName.slack.com/customize/emoji\n"
-        #                 "2. Open DevTools (F12 or Ctrl+Shift+I)\n"
-        #                 "3. In the Console tab, paste the code\n"
-        #                 "   (Code gets copied when clicking this question mark)\n"
-        #                 "4. Copy the output and save it as a .json file\n"
-        #                 "5. Use this file when clicking 'Add Slack Emoji'")
         
         # Function to copy code to clipboard and show a message
         def copy_code_to_clipboard():
@@ -170,7 +158,8 @@ class EmojiGridApp:
                         "3. In the Console tab, paste the code\n"
                         "   (You can copy the code from the github page clicking the question mark will redirect you)\n"
                         "4. Save the output file\n"
-                        "5. Use this file when clicking 'Add Slack Emoji'")
+                        "5. Use this file when clicking 'Add Slack Emoji'\n"
+                        "6. Click 'Add Slack Emoji' again to add a emoji")
         self.create_tooltip(help_icon, help_text)
 
         button_frame2 = tk.Frame(self.settings_frame)
@@ -178,13 +167,34 @@ class EmojiGridApp:
         tk.Button(button_frame2, text="Export", command=self.export).pack(side="left", padx=2)
         tk.Button(button_frame2, text="Save", command=self.save).pack(side="left", padx=2)
         tk.Button(button_frame2, text="Load", command=self.load).pack(side="left", padx=2)
+        
+        # --- Legacy features toggle ---
+        legacy_frame = tk.Frame(self.settings_frame)
+        legacy_frame.pack()
+        # Inner frame that holds actual legacy feature buttons
+        legacy_inner_frame = tk.Frame(legacy_frame)
 
-        # --- Export confirmation message ---
-        self.export_msg = tk.Label(self.settings_frame, text="", fg="green")
-        self.export_msg.pack()
+        self.legacy_features_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            legacy_frame,
+            text="Enable Legacy Features",
+            variable=self.legacy_features_var,
+            command=lambda: self.toggle_legacy_features(legacy_inner_frame)
+        ).pack(pady=3)
+
+        # Create Add Image button (if legacy mode enabled)
+        tk.Label(legacy_inner_frame, text="Note: These images cannot be saved.").pack()
+        self.add_image_button = tk.Button(legacy_inner_frame, text="Add Image", command=self.add_image)
+        self.add_image_button.pack(pady=2)
 
         tk.Label(self.settings_frame, text="Use left mouse to draw right to remove (idx 0).").pack()
         tk.Label(self.settings_frame, text="Press 0-9 to select emoji index.").pack()
+
+    def toggle_legacy_features(self, frame):
+        if self.legacy_features_var.get():
+            frame.pack()
+        else:
+            frame.pack_forget()
 
     def create_tooltip(self, widget, text):
         """Create a tooltip for a given widget"""
@@ -762,58 +772,125 @@ class EmojiGridApp:
         output = "\n".join("".join(self.emoji_mappings[cell][0] for cell in row) for row in self.grid)
         self.root.clipboard_clear()
         self.root.clipboard_append(output)
+        # --- Export confirmation message ---
+        self.export_msg = tk.Label(self.settings_frame, text="", fg="green")
         self.export_msg.config(text="Copied to clipboard!")
-        self.root.after(2000, lambda: self.export_msg.config(text=""))
+        self.export_msg.pack()
+        self.root.after(2000, lambda: self.export_msg.pack_forget()) #self.export_msg.config(text="")
 
     def save(self):
         self.update_palette()
-        path = filedialog.asksaveasfilename(defaultextension=".txt")
+        path = filedialog.asksaveasfilename(defaultextension=".emojigrid")
         if path:
+            # Prepare save data
+            save_data = {
+                "version": __version__,
+                "grid_size": {
+                    "rows": self.rows,
+                    "cols": self.cols
+                },
+                "emoji_mappings": {},
+                "grid": self.grid,
+                "slack_emoji_json": self.slack_emojis  # Save the entire Slack emoji JSON
+            }
+
+            # Process emoji mappings
+            for idx, (emoji_name, value) in self.emoji_mappings.items():
+                if idx in self.slack_emoji_indices:
+                    # For Slack emojis, just save the name
+                    save_data["emoji_mappings"][idx] = {
+                        "type": "slack",
+                        "name": emoji_name
+                    }
+                elif isinstance(value, str):  # Color
+                    save_data["emoji_mappings"][idx] = {
+                        "type": "color",
+                        "name": emoji_name,
+                        "color": value
+                    }
+                else:  # Image (though we're not handling this fully in this version)
+                    save_data["emoji_mappings"][idx] = {
+                        "type": "image",
+                        "name": emoji_name
+                    }
+
+            # Save to file
             with open(path, "w") as f:
-                for row in self.grid:
-                    f.write("".join(self.emoji_mappings[cell][0] for cell in row) + "\n")
+                json.dump(save_data, f, indent=4)
 
     def load(self):
-        path = filedialog.askopenfilename()
+        path = filedialog.askopenfilename(filetypes=[("Emoji Grid Files", "*.emojigrid")])
         if not path:
             return
 
-        with open(path, "r") as f:
-            lines = [line.strip() for line in f.readlines()]
+        try:
+            with open(path, "r") as f:
+                save_data = json.load(f)
 
-        flat_emojis = [":" + p + ":" for line in lines for p in line.split(":") if p]
-        unique_emojis = []
-        for e in flat_emojis:
-            if e not in unique_emojis:
-                unique_emojis.append(e)
+            # Reset existing state
+            self.emoji_mappings.clear()
+            self.slack_emoji_indices.clear()
+            self.emoji_count = 0
 
-        # Build new mappings
-        self.emoji_mappings = {
-            i: (emoji, self.random_pastel_color()) for i, emoji in enumerate(unique_emojis)
-        }
-        self.emoji_count = len(self.emoji_mappings)
+            # Restore Slack emojis JSON if present
+            self.slack_emojis = save_data.get("slack_emoji_json", None)
 
-        # Update UI
-        self.build_emoji_entries()
+            # Restore grid size
+            self.rows = save_data["grid_size"]["rows"]
+            self.cols = save_data["grid_size"]["cols"]
+            
+            # Update grid size entries
+            self.row_entry.delete(0, tk.END)
+            self.col_entry.delete(0, tk.END)
+            self.row_entry.insert(0, str(self.rows))
+            self.col_entry.insert(0, str(self.cols))
 
-        # Update grid size
-        self.rows = len(lines)
-        self.cols = max(len(line.split(":")) // 2 for line in lines)
-        self.row_entry.delete(0, tk.END)
-        self.col_entry.delete(0, tk.END)
-        self.row_entry.insert(0, str(self.rows))
-        self.col_entry.insert(0, str(self.cols))
-        self.reset_grid()
+            # Restore emoji mappings
+            for idx, emoji_data in save_data["emoji_mappings"].items():
+                idx = int(idx)  # Ensure idx is an integer
+                
+                if emoji_data["type"] == "slack":
+                    # For Slack emojis, try to reload from the saved Slack emoji JSON
+                    name = emoji_data["name"].strip(":")  # Remove colons
+                    
+                    if self.slack_emojis and name in self.slack_emojis:
+                        url = self.slack_emojis[name]
+                        try:
+                            with urllib.request.urlopen(url) as response:
+                                img_data = response.read()
+                            img = Image.open(BytesIO(img_data)).resize((self.cell_size, self.cell_size), Image.Resampling.LANCZOS)
+                            tk_img = ImageTk.PhotoImage(img)
+                            
+                            self.emoji_mappings[idx] = (emoji_data["name"], tk_img)
+                            self.slack_emoji_indices.add(idx)
+                            self.emoji_count = max(self.emoji_count, idx + 1)
+                        except Exception as e:
+                            print(f"Failed to load Slack emoji {name}: {e}")
+                            # Fallback to a default color if image can't be loaded
+                            self.emoji_mappings[idx] = (emoji_data["name"], "#cccccc")
+                    else:
+                        # If Slack emoji JSON is not available or emoji not found
+                        self.emoji_mappings[idx] = (emoji_data["name"], "#cccccc")
+                
+                elif emoji_data["type"] == "color":
+                    self.emoji_mappings[idx] = (emoji_data["name"], emoji_data["color"])
+                    self.emoji_count = max(self.emoji_count, idx + 1)
+                
+                elif emoji_data["type"] == "image":
+                    # Placeholder for future image handling
+                    self.emoji_mappings[idx] = (emoji_data["name"], "#ffffff")
+                    self.emoji_count = max(self.emoji_count, idx + 1)
 
-        # Fill grid
-        for r, line in enumerate(lines):
-            parts = [":" + p + ":" for p in line.split(":") if p]
-            for c, part in enumerate(parts):
-                for idx, (emoji, _) in self.emoji_mappings.items():
-                    if part == emoji:
-                        self.grid[r][c] = idx
-                        break
-        self.refresh_grid_colors()
+            # Restore grid
+            self.grid = save_data["grid"]
+
+            # Rebuild UI and refresh grid
+            self.build_emoji_entries()
+            self.reset_grid()
+            self.refresh_grid_colors()
+
+        except Exception as e:
+            messagebox.showerror("Load Error", f"Failed to load file: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
