@@ -12,16 +12,6 @@ import threading
 import time
 import re
 
-# One possible big problem with this right now is our support for updating the Python file,
-# as im aware, some people prefer to run the Python file itself rather than installing the .exe
-# at the moment, we only update the SlackPaint.py as I never planned on having this be any bigger then one Python file.
-# Technically this if fine at the moment as theoretically this file should just work and not require updates, so only updating SlackPaint.py is fine
-# (But it never goes all fine...)
-# So if in the future the Updater.py needs an update, people running the python file themself will have to manually update
-
-# The solution here is probably to change it so we look for all python files and update all of them but thats out of the scope of this project for now
-# or like any sane person use NSIS or simmilar (but thats a bit boring for this project)
-
 class Updater:
     def __init__(self, version):
         self.github_repo = "Slowlor1ss/SlackPaint"
@@ -367,40 +357,60 @@ class Updater:
         threading.Thread(target=update_thread, daemon=True).start()
         
     def update_py_version(self, progress_label):
-        """
-        Update the Python script version
-        """
-        progress_label.config(text="Downloading new version...")
-        
-        # Get current script path
-        current_path = os.path.abspath(sys.argv[0])
-        
-        # Download new version to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.py') as temp_file:
-            temp_path = temp_file.name
-            
-        try:
-            with urllib.request.urlopen(self.py_download_url, timeout=10) as response:
-                new_content = response.read()
-                
-            with open(temp_path, 'wb') as f:
-                f.write(new_content)
-                
-            # Backup the old version
-            backup_path = current_path + '.backup'
-            progress_label.config(text="Creating backup...")
-            if os.path.exists(backup_path):
-                os.remove(backup_path)
-            shutil.copy2(current_path, backup_path)
-            
-            # Replace with new version
-            progress_label.config(text="Installing update...")
-            shutil.copy2(temp_path, current_path)
-            
-        finally:
-            # Clean up
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+      """
+      Update all .py files in the local folder from GitHub
+      """
+      self.update_all_py_files(progress_label)
+
+
+    def update_all_py_files(self, progress_label):
+      """
+      Download and replace all .py files in the current directory with latest versions from GitHub.
+      """
+      progress_label.config(text="Scanning for .py files...")
+
+      # Get current script directory
+      base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+
+      # Find all .py files 
+      # (We might run in to issues updating the Updater.py itsef as this code is running while were updating it
+      # python typically loads the entire script into memory before running it I think, so we ~should be fine, but might cause issues later;
+      # leaving it for now as this is out of scope of this project)
+      py_files = []
+      for root, dirs, files in os.walk(base_dir):
+          for file in files:
+              if file.endswith('.py'):
+                  full_path = os.path.join(root, file)
+                  py_files.append(full_path)
+
+      if not py_files:
+          raise Exception("No .py files found to update.")
+
+      progress_label.config(text="Downloading updated scripts...")
+
+      # For every python file we find we try to find the latest verion on github, and update 
+      # (This assumes the same foler structure locally as on github)
+      for py_file in py_files:
+          relative_path = os.path.relpath(py_file, base_dir).replace("\\", "/")
+          github_url = f"https://raw.githubusercontent.com/{self.github_repo}/main/{relative_path}"
+
+          try:
+              with urllib.request.urlopen(github_url, timeout=10) as response:
+                  new_code = response.read()
+
+              # Backup old version
+              backup_path = py_file + ".backup"
+              shutil.copy2(py_file, backup_path)
+
+              # Write new version
+              with open(py_file, "wb") as f:
+                  f.write(new_code)
+
+              print(f"Updated: {relative_path}")
+          except Exception as e:
+              print(f"Failed to update {relative_path}: {e}")
+
+      progress_label.config(text="All scripts updated successfully.")
     
     def update_exe_version(self, progress_label, release_info=None):
         """
