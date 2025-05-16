@@ -5,30 +5,17 @@ from PIL import Image, ImageTk
 import random
 import os
 
-#from TooltipHelper import SLACK_EMOJI_HELP_TEXT, SLACK_EMOJI_CODE
+from Updater import Updater
 
 import json
 from io import BytesIO
 import urllib.request
-import re
 
-import webbrowser
-import urllib.request
+__version__ = "v0.1.3-beta"
 
-__version__ = "v0.1.1-beta"
-
-# TODO: add a better update system, possibly one that updates the app for you?
 def check_for_update():
-    try:
-        remote_url = "https://raw.githubusercontent.com/Slowlor1ss/SlackPaint/main/version.txt"
-        with urllib.request.urlopen(remote_url, timeout=5) as response:
-            latest_version = response.read().decode().strip()
-        if latest_version != __version__:
-            answer = messagebox.askyesno("Update Available", f"A new version ({latest_version}) is available. Visit GitHub to download?")
-            if answer:
-                webbrowser.open("https://github.com/Slowlor1ss/SlackPaint/releases")
-    except Exception as e:
-        print("Version check failed:", e)
+    updater = Updater(__version__)
+    return updater.check_for_update()
 
 MAX_EMOJIS = 10
 DEFAULT_ROWS = 20
