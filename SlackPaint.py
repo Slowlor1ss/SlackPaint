@@ -1,23 +1,26 @@
+import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.colorchooser import askcolor
+import webbrowser
 from PIL import Image, ImageTk
 import random
 import os
 
 from Updater import Updater
+from ImageToEmojiUI import ImageToEmojiUI
 
 import json
 from io import BytesIO
 import urllib.request
 
-__version__ = "v0.1.4-beta"
+__version__ = "v0.2.0-beta"
 
 def check_for_update():
     updater = Updater(__version__)
     return updater.check_for_update()
 
-MAX_EMOJIS = 10
+MAX_EMOJIS = 999#10
 DEFAULT_ROWS = 20
 DEFAULT_COLS = 20
 CELL_SIZE = 25
@@ -47,9 +50,22 @@ class EmojiGridApp:
         # Track which emojis were added from Slack
         self.slack_emoji_indices = set()
 
+        self.slack_emojis_version = None # To store the last modified date of the file used to load slack emojis, used to check the "version"
         self.slack_emojis = None  # To store the loaded Slack emoji mapping
 
-        self.canvas = tk.Canvas(root, highlightthickness=0)
+        # --- Canvas collapsible section ---
+        self.canvas_container = tk.Frame(root)
+        self.canvas_container.pack(fill="both", expand=True)
+
+        self.toggle_canvas_button = tk.Button(
+            self.canvas_container, text="▼ Hide Canvas", command=self.toggle_canvas
+        )
+        self.toggle_canvas_button.pack(anchor="w")
+
+        self.canvas_frame = tk.Frame(self.canvas_container)
+        self.canvas_frame.pack(fill="both", expand=True)
+
+        self.canvas = tk.Canvas(self.canvas_frame, highlightthickness=0)
         self.canvas.pack()
 
         self.active_button = None
@@ -59,6 +75,14 @@ class EmojiGridApp:
         self.reset_grid(initialize=True)
 
         self.root.bind("<Button-1>", self.refocus_canvas, add="+")
+
+    def toggle_canvas(self):
+        if self.canvas_frame.winfo_ismapped():
+            self.canvas_frame.pack_forget()
+            self.toggle_canvas_button.config(text="▶ Show Canvas")
+        else:
+            self.canvas_frame.pack(fill="both", expand=True)
+            self.toggle_canvas_button.config(text="▼ Hide Canvas")
 
     def setup_settings_panel(self):
         self.settings_frame = tk.Frame(self.root)
@@ -147,13 +171,20 @@ class EmojiGridApp:
                         "4. Save the output file\n"
                         "5. Use this file when clicking 'Add Slack Emoji'\n"
                         "6. Click 'Add Slack Emoji' again to add a emoji")
-        self.create_tooltip(help_icon, help_text)
+        ImageToEmojiUI.create_tooltip(help_icon, help_text)
 
         button_frame2 = tk.Frame(self.settings_frame)
         button_frame2.pack()
         tk.Button(button_frame2, text="Export", command=self.export).pack(side="left", padx=2)
         tk.Button(button_frame2, text="Save", command=self.save).pack(side="left", padx=2)
         tk.Button(button_frame2, text="Load", command=self.load).pack(side="left", padx=2)
+
+        # Create a frame for Image to Emoji button
+        convert_img_frame = tk.Frame(self.settings_frame)
+        convert_img_frame.pack()
+
+        convert_img_button = tk.Button(convert_img_frame, text="Image to Emoji", command=self.open_image_converter)
+        convert_img_button.pack(side="left")
         
         # --- Legacy features toggle ---
         legacy_frame = tk.Frame(self.settings_frame)
@@ -175,7 +206,17 @@ class EmojiGridApp:
         self.add_image_button.pack(pady=2)
 
         tk.Label(self.settings_frame, text="Use left mouse to draw right to remove (idx 0).").pack()
-        tk.Label(self.settings_frame, text="Press 0-9 to select emoji index.").pack()
+        tk.Label(self.settings_frame, text="Press 0-9 to select emoji index. Or click on the label.").pack()
+
+    def open_image_converter(self):
+        """Open the Image to Emoji converter dialog"""
+        # Check if Slack emojis are loaded
+        if not self.slack_emojis:
+            messagebox.showinfo("Slack Emojis Required", 
+                            "Please load Slack emojis first using the 'Add Slack Emoji' button.")
+            return
+        # Show the converter UI
+        ImageToEmojiUI(self.root, self)
 
     def toggle_legacy_features(self, frame):
         if self.legacy_features_var.get():
@@ -183,36 +224,12 @@ class EmojiGridApp:
         else:
             frame.pack_forget()
 
-    def create_tooltip(self, widget, text):
-        """Create a tooltip for a given widget"""
-        def enter(event):
-            x, y, _, _ = widget.bbox("insert")
-            x += widget.winfo_rootx() + 25
-            y += widget.winfo_rooty() + 25
-            
-            # Create a toplevel window
-            tip = tk.Toplevel(widget)
-            tip.wm_overrideredirect(True)
-            tip.wm_geometry(f"+{x}+{y}")
-            
-            label = tk.Label(tip, text=text, justify=tk.LEFT,
-                            background="#ffffe0", relief=tk.SOLID, borderwidth=1,
-                            padx=6, pady=3, wraplength=350)
-            label.pack()
-            
-            widget._tooltip = tip
-            
-        def leave(event):
-            if hasattr(widget, "_tooltip"):
-                widget._tooltip.destroy()
-                del widget._tooltip
-                
-        widget.bind("<Enter>", enter)
-        widget.bind("<Leave>", leave)
-
     # There's probably a way better way of doing this lol
     def confirm_reset_grid(self):
         if messagebox.askyesno("Confirm Clear", "Are you sure you want to clear the entire grid?"):
+            # I mainly added this (emoji_mappings[0] = (":_:", "#ffffff"))
+            # because when converting image to emoji's often idx 0 changes to an image making the gridlines dissapear (intended)
+            self.emoji_mappings[0] = (":_:", "#ffffff") 
             self.reset_grid(initialize=True)
 
     def _on_mousewheel(self, event):
@@ -238,7 +255,8 @@ class EmojiGridApp:
             self.emoji_frames[i] = frame
 
             # ID Label
-            tk.Label(frame, text=f"{i}", width=1).pack(side="left")
+            idLabel = tk.Label(frame, text=f"{i}", width=1)
+            idLabel.pack(side="left")
 
             # Emoji text entry
             emoji = tk.Entry(frame, width=15)
@@ -293,10 +311,13 @@ class EmojiGridApp:
                         color_box.image = tk_img
                         self.refresh_grid_colors()
 
-            # Left-click to change color/image
+            # Left-click to change color/image (when clicking the preview)
             color_box.bind("<Button-1>", lambda e, i=i, cb=color_box: choose_color_or_image(i, cb))
-            # Right-click to remove emoji
-            color_box.bind("<Button-3>", lambda e, i=i: self.remove_emoji(i))
+
+            # Left-click on label to select an emoji for drawing
+            emoji.bind("<Button-1>", lambda e, i=i: self.select_emoji(i), add="+")
+            idLabel.bind("<Button-1>", lambda e, i=i: self.select_emoji(i), add="+")
+            frame.bind("<Button-1>", lambda e, i=i: self.select_emoji(i), add="+")
 
             # Remove button
             remove_btn = tk.Button(frame, text="-", command=lambda i=i: self.remove_emoji(i), width=2)
@@ -310,6 +331,13 @@ class EmojiGridApp:
         visible_rows = min((self.emoji_count + 1) // 2, 4)
         row_height = 40 + 1 # +1 for padding
         self.scroll_canvas.config(height=visible_rows * row_height)
+
+    def select_emoji(self, index):
+        """Select an emoji for drawing by clicking on it"""
+        if index < self.emoji_count:
+            self.current_color = index
+            self.update_selection_highlight()
+            self.canvas.focus_set()  # Keep canvas focused for keyboard shortcuts
 
     # New method for updating a specific Slack emoji
     def show_slack_emoji_search_for_update(self, index, color_box):
@@ -406,6 +434,37 @@ class EmojiGridApp:
         listbox.bind("<Double-Button-1>", on_select)
         search_entry.focus()
 
+    # Re-fetch and update the preview image for all Slack emojis currently in the palette
+    def reload_slack_emojis(self):
+        if not self.slack_emojis:
+            messagebox.showinfo("Slack Emojis Not Loaded", "Please load Slack emojis first using 'Add Slack Emoji'.")
+            return
+
+        for i in self.slack_emoji_indices:
+            emoji_name, url_or_img = self.emoji_mappings[i]
+            name_clean = emoji_name.strip(":")
+            if name_clean not in self.slack_emojis:
+                continue  # Emoji might have been removed from the source
+
+            url = self.slack_emojis[name_clean]
+            try:
+                with urllib.request.urlopen(url) as response:
+                    img_data = response.read()
+                img = Image.open(BytesIO(img_data)).resize((self.cell_size, self.cell_size), Image.Resampling.LANCZOS)
+                tk_img = ImageTk.PhotoImage(img)
+
+                self.emoji_mappings[i] = (emoji_name, tk_img)
+
+                # Update preview image in the UI
+                _, color_box = self.emoji_entries[i]
+                color_box.config(image=tk_img)
+                color_box.image = tk_img  # Keep reference
+            except Exception as e:
+                print(f"Failed to reload emoji {emoji_name}: {e}")
+
+        self.refresh_grid_colors()
+        messagebox.showinfo("Slack Emojis Reloaded", "Slack emoji previews have been reloaded.")
+
     # New method to update an existing slack emoji
     def update_slack_emoji(self, index, name, url, color_box):
         try:
@@ -428,7 +487,7 @@ class EmojiGridApp:
             self.refresh_grid_colors()
             self.canvas.focus_set()
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load emoji image:\n{e}")
+            messagebox.showerror("Error", f"Failed to load emoji image: {url}\n{e} (the emoji might have been removed from the server)")
 
     def update_selection_highlight(self):
         for i, frame in self.emoji_frames.items():
@@ -462,6 +521,8 @@ class EmojiGridApp:
             path = filedialog.askopenfilename(title="Select Slack Emoji JSON", filetypes=[("JSON files", "*.json")])
             if not path:
                 return
+            timestamp = os.path.getmtime(path)
+            self.slack_emojis_version = datetime.datetime.fromtimestamp(timestamp)
             with open(path, "r") as f:
                 self.slack_emojis = json.load(f)
             messagebox.showinfo("Loaded", f"{len(self.slack_emojis)} Slack emojis loaded.")
@@ -569,7 +630,7 @@ class EmojiGridApp:
     def add_slack_emoji_to_palette(self, name, url):
         if self.emoji_count >= MAX_EMOJIS:
             messagebox.showinfo("Limit reached", f"Maximum of {MAX_EMOJIS} emojis allowed.")
-            return
+            return False
         try:
             with urllib.request.urlopen(url) as response:
                 img_data = response.read()
@@ -581,8 +642,30 @@ class EmojiGridApp:
             self.emoji_count += 1
             self.build_emoji_entries()
             self.canvas.focus_set()
+            return True
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load emoji image:\n{e}")
+            messagebox.showerror("Error", f"Failed to load emoji image: {url}\n{e}")
+            return False
+        
+    def add_slack_emoji_to_palette_parallel(self, name, url):
+        try:
+            with urllib.request.urlopen(url) as response:
+                img_data = response.read()
+            img = Image.open(BytesIO(img_data)).resize((self.cell_size, self.cell_size), Image.Resampling.LANCZOS)
+            return name, img
+        except Exception as e:
+            #messagebox.showerror("Error", f"Failed to load emoji image: {url}\n{e}")
+            return name, None
+
+    def finalize_add_slack_emoji_to_palette(self, img, name):
+        if img is None:
+            # Create a fallback image (100x100, debug purple)
+            img = Image.new('RGB', (25, 25), color=(255, 0, 255)) 
+        tk_img = ImageTk.PhotoImage(img)
+        self.emoji_mappings[self.emoji_count] = (f":{name}:", tk_img)
+        # Mark this as a Slack emoji
+        self.slack_emoji_indices.add(self.emoji_count)
+        self.emoji_count += 1
 
     def remove_emoji(self, index):
         if index == 0:
@@ -616,6 +699,19 @@ class EmojiGridApp:
         self.emoji_count = len(self.emoji_mappings)
 
         # Step 3: Rebuild UI and grid visuals
+        self.build_emoji_entries()
+        self.refresh_grid_colors()
+
+    def remove_all_emojis(self):
+        # Prevent removing the default emoji at index 0
+        self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+
+        # Reset emoji mappings and related state
+        self.emoji_mappings.clear()
+        self.slack_emoji_indices.clear()
+        self.emoji_count = 0
+
+        # Rebuild UI and visuals
         self.build_emoji_entries()
         self.refresh_grid_colors()
 
@@ -882,5 +978,6 @@ class EmojiGridApp:
 if __name__ == "__main__":
     root = tk.Tk()
     check_for_update()
+    root.lift() # Bring window to top
     app = EmojiGridApp(root)
     root.mainloop()

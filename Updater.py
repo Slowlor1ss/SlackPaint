@@ -42,11 +42,11 @@ class Updater:
             else:
               latest_version = self.get_most_recent_version()
 
-            if latest_version.startswith('v'):
-              latest_version = latest_version[1:]  # Remove 'v' prefix if present
-                
             # Compare versions
             if latest_version and latest_version != self.current_version:
+                if latest_version.startswith('v'):
+                    latest_version = latest_version[1:]  # Remove 'v' prefix if present
+
                 if silent:
                     return True, latest_version
                     
@@ -252,6 +252,7 @@ class Updater:
         dialog.title("Update Available")
         dialog.geometry("500x400")
         dialog.grab_set()  # Make it modal
+        dialog.lift() # Bring to top
         
         # Configure the dialog
         dialog.columnconfigure(0, weight=1)
