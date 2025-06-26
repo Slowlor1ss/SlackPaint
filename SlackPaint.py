@@ -35,6 +35,7 @@ class EmojiGridApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Emoji Grid Painter")
+        self.root.resizable(False, False)
 
         self.rows = DEFAULT_ROWS
         self.cols = DEFAULT_COLS
@@ -62,19 +63,143 @@ class EmojiGridApp:
         )
         self.toggle_canvas_button.pack(anchor="w")
 
+        # -- Canvas scrolling --
+
+        # Create a frame that will contain the scrollable canvas
         self.canvas_frame = tk.Frame(self.canvas_container)
         self.canvas_frame.pack(fill="both", expand=True)
 
+        # Initially create canvas without scrollbars
         self.canvas = tk.Canvas(self.canvas_frame, highlightthickness=0)
-        self.canvas.pack()
+
+        # Create scrollbars
+        self.v_scroll = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.canvas.yview)
+        self.h_scroll = ttk.Scrollbar(self.canvas_frame, orient="horizontal", command=self.canvas.xview)
+
+        # Attach canvas to scrollbars
+        self.canvas.configure(yscrollcommand=self.v_scroll.set, xscrollcommand=self.h_scroll.set)
+
+        # Pack canvas
+        self.canvas.pack(fill="both", expand=True)
+        
+        self.is_scrollable = False
 
         self.active_button = None
-
+        
+        self.approxNonCanvasWidth = 0
+        self.approxNonCanvasHeight = 0
         self.setup_settings_panel()
         self.setup_bindings()
         self.reset_grid(initialize=True)
 
         self.root.bind("<Button-1>", self.refocus_canvas, add="+")
+        
+        # Bind window resize event to check if we need scrollbars
+        self.canvas.bind("<Configure>", self.on_canvas_configure)
+
+        self.root.after(0, self.late_init)
+
+    def late_init(self):
+        """This will run after the first visual frame is drawn"""
+        self.root.update_idletasks()
+
+        window_width = self.root.winfo_width()
+        window_height = self.root.winfo_height()
+        canvas_width = self.cols * self.cell_size
+        canvas_height = self.rows * self.cell_size
+        self.approxNonCanvasWidth = window_width - canvas_width
+        self.approxNonCanvasHeight = window_height - canvas_height
+
+    def on_canvas_configure(self, event):
+        self.resize_after_id = None
+            
+        # Get current window size
+        window_width = self.root.winfo_width()
+        window_height = self.root.winfo_height()
+
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        max_window_width = int(screen_width * 0.7)
+        max_window_height = int(screen_height * 0.7)
+        
+        # Calculate max allowed canvas dimensions (capped at when window reaches 70% screen)
+        #max_width = min(self.cols * self.cell_size, max_window_width - self.approxNonCanvasWidth)
+        max_width = self.cols * self.cell_size
+        max_height = min(self.rows * self.cell_size, max_window_height - self.approxNonCanvasHeight)
+        
+        # Check if we need scrollbars (window is getting too big)
+        needs_scrollbars = (window_width > max_window_width or
+                            window_height > max_window_height)
+        
+        if needs_scrollbars and not self.is_scrollable:
+            # Set size of canvas so it doesnt exceed our max
+            self.canvas.config(width=max_width, height=max_height)
+            self.make_canvas_scrollable()
+        elif not needs_scrollbars and self.is_scrollable:
+            # Set size of canvas so it doesnt exceed our max
+            self.canvas.config(width=max_width, height=max_height)
+            self.make_canvas_non_scrollable()
+        else:
+            # Just update the canvas size
+            self.canvas.config(width=max_width, height=max_height)
+            # Update scroll region if scrollable
+            if self.is_scrollable:
+                self.canvas.config(
+                    scrollregion=(0, 0, self.cols * self.cell_size, self.rows * self.cell_size)
+                )
+
+    def make_canvas_scrollable(self):
+        if self.is_scrollable:
+            return
+
+        self.canvas.yview_moveto(0)
+        self.canvas.xview_moveto(0)
+
+        self.canvas.pack_forget()  # Remove canvas temporarily
+
+        self.v_scroll.pack(side="right", fill="y")
+        self.h_scroll.pack(side="bottom", fill="x")
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        # Set scroll region
+        self.canvas.config(
+            scrollregion=(0, 0, self.cols * self.cell_size, self.rows * self.cell_size)
+        )
+
+        self.canvas.bind("<MouseWheel>", self.on_canvas_mousewheel)
+        self.canvas.bind("<Shift-MouseWheel>", self.on_canvas_shift_mousewheel)
+
+        self.is_scrollable = True
+
+    def make_canvas_non_scrollable(self):
+        if not self.is_scrollable:
+            return
+
+        # Reset the scroll otherwise we run in to issue when making the canvas smaller again and the content being scrolled
+        self.canvas.yview_moveto(0)
+        self.canvas.xview_moveto(0)
+
+        # Hide scrollbars
+        self.v_scroll.pack_forget()
+        self.h_scroll.pack_forget()
+
+        # Clear scrollregion
+        self.canvas.config(scrollregion="")
+
+        self.canvas.unbind("<MouseWheel>")
+        self.canvas.unbind("<Shift-MouseWheel>")
+
+        self.is_scrollable = False
+
+    def on_canvas_mousewheel(self, event):
+        """Handle vertical scrolling with mouse wheel"""
+        if self.is_scrollable:
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def on_canvas_shift_mousewheel(self, event):
+        """Handle horizontal scrolling with Shift+mouse wheel"""
+        if self.is_scrollable:
+            self.canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def toggle_canvas(self):
         if self.canvas_frame.winfo_ismapped():
@@ -331,6 +456,7 @@ class EmojiGridApp:
         visible_rows = min((self.emoji_count + 1) // 2, 4)
         row_height = 40 + 1 # +1 for padding
         self.scroll_canvas.config(height=visible_rows * row_height)
+        self.on_canvas_configure(None)
 
     def select_emoji(self, index):
         """Select an emoji for drawing by clicking on it"""
@@ -759,16 +885,22 @@ class EmojiGridApp:
                     img_id = self.canvas.create_image(c * self.cell_size, r * self.cell_size, anchor="nw", image=fill)
                     self.canvas_images[(r, c)] = img_id
 
+    def set_grid_size(self, new_rows, new_cols):
+        if new_rows <= 0 or new_cols <= 0:
+            raise ValueError
+        self.rows = new_rows
+        self.cols = new_cols
+        self.reset_grid()
+        self.canvas.focus_set()
+        #self.on_canvas_configure(None)
+
     def update_grid_size(self):
         try:
             new_rows = int(self.row_entry.get())
             new_cols = int(self.col_entry.get())
             if new_rows <= 0 or new_cols <= 0:
                 raise ValueError
-            self.rows = new_rows
-            self.cols = new_cols
-            self.reset_grid()
-            self.canvas.focus_set()
+            self.set_grid_size(new_rows, new_cols)
         except ValueError:
             messagebox.showerror("Invalid input", "Grid size must be positive integers.")
 
@@ -798,6 +930,7 @@ class EmojiGridApp:
         self.canvas.bind("<Button-3>", self.on_right_click)
         self.canvas.bind("<B3-Motion>", self.on_mouse_drag)
         self.root.bind("<Key>", self.handle_keypress)
+        #self.setup_canvas_bindings()
 
     def on_left_click(self, event):
         self.active_button = 1
@@ -816,8 +949,17 @@ class EmojiGridApp:
             self.canvas.focus_set()
 
     def paint_at(self, event):
-        col = event.x // self.cell_size
-        row = event.y // self.cell_size
+        # Convert canvas coordinates to account for scrolling
+        if self.is_scrollable:
+            canvas_x = self.canvas.canvasx(event.x)
+            canvas_y = self.canvas.canvasy(event.y)
+        else:
+            canvas_x = event.x
+            canvas_y = event.y
+        
+        col = int(canvas_x // self.cell_size)
+        row = int(canvas_y // self.cell_size)
+        
         if 0 <= row < self.rows and 0 <= col < self.cols:
             if self.active_button == 1:  # Left click = paint
                 new_idx = self.current_color
@@ -919,8 +1061,7 @@ class EmojiGridApp:
             self.slack_emojis = save_data.get("slack_emoji_json", None)
 
             # Restore grid size
-            self.rows = save_data["grid_size"]["rows"]
-            self.cols = save_data["grid_size"]["cols"]
+            self.set_grid_size(save_data["grid_size"]["rows"], save_data["grid_size"]["cols"])
             
             # Update grid size entries
             self.row_entry.delete(0, tk.END)

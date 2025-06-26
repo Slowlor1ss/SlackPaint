@@ -412,8 +412,7 @@ class ImageToEmojiUI:
         self.app.col_entry.insert(0, str(cols))
         
         # Update the grid dimensions
-        self.app.rows = rows
-        self.app.cols = cols
+        self.app.set_grid_size(rows, cols)
         
         # Create a work queue for emoji processing
         work_queue = queue.Queue()
