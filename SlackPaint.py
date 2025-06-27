@@ -14,7 +14,7 @@ import json
 from io import BytesIO
 import urllib.request
 
-__version__ = "v0.2.0-beta"
+__version__ = "v0.2.1-beta"
 
 def check_for_update():
     updater = Updater(__version__)
