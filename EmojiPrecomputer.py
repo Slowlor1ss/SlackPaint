@@ -23,9 +23,10 @@ from collections import defaultdict, Counter
 #
 
 class EmojiPrecomputer:
-    def __init__(self, slack_emojis, slack_emojis_version, progress_callback):
+    def __init__(self, slack_emojis, slack_emojis_version, background_color, progress_callback):
         self.slack_emojis = slack_emojis
         self.slack_emojis_version = slack_emojis_version
+        self.background_color = background_color
         self.exclude_gifs = False
         self.progress_callback = progress_callback
         
@@ -169,7 +170,9 @@ class EmojiPrecomputer:
         alpha = img_array[..., 3] / 255.0
 
         # Slack dark mode background (optional)
-        bg = np.array([34, 37, 41], dtype=np.uint8)
+        #bg = np.array([34, 37, 41], dtype=np.uint8)
+        # Turns hex in to rgb
+        bg = np.array([int(self.background_color[i:i+2], 16) for i in (1, 3, 5)], dtype=np.uint8)
         bg = np.broadcast_to(bg, rgb.shape)
 
         # Blend with background using alpha
@@ -202,7 +205,9 @@ class EmojiPrecomputer:
         alpha = img_array[..., 3] / 255.0
         
         # Background color (Slack dark mode)
-        bg = np.array([34, 37, 41], dtype=np.float32)
+        #bg = np.array([34, 37, 41], dtype=np.float32)
+        # Turns hex in to rgb
+        bg = np.array([int(self.background_color[i:i+2], 16) for i in (1, 3, 5)], dtype=np.float32)
         bg = np.broadcast_to(bg, rgb.shape)
         
         # Linear interpolation with alpha

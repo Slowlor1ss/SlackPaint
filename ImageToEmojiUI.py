@@ -1,11 +1,13 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageGrab
 import threading
 import os
+import io
 import time
 import queue
+import requests
 
 from ImageToEmojiConverter import ImageToEmojiConverter
 
@@ -42,6 +44,9 @@ class ImageToEmojiUI:
         self.image_path_entry = tk.Entry(image_frame, textvariable=self.image_path_var, width=30)
         self.image_path_entry.pack(side="left", fill="x", expand=True, padx=5)
         tk.Button(image_frame, text="Browse...", command=self.browse_image).pack(side="left")
+
+        tk.Button(image_frame, text="Paste", command=self.paste_image_from_clipboard).pack(side="left", padx=2)
+        tk.Button(image_frame, text="Load URL", command=self.load_image_from_url).pack(side="left", padx=2)
         
         # Size frame
         size_frame = tk.Frame(self.main_frame)
@@ -190,6 +195,65 @@ class ImageToEmojiUI:
             # Update edge detection preview if edge detection mode is enabled
             if hasattr(self, 'edge_detection_mode') and self.edge_detection_mode.get():
                 self.update_edge_preview()
+    
+    def paste_image_from_clipboard(self):
+        try:
+            image = ImageGrab.grabclipboard()
+
+            # Direct image
+            if isinstance(image, Image.Image):
+                image = image.convert("RGB")
+                self.pasted_image = image
+                self.image_path_var.set("Image from Clipboard")
+
+            # Path to image in clipboard
+            elif isinstance(image, list) and len(image) == 1 and isinstance(image[0], str):
+                potential_path = image[0]
+                if os.path.exists(potential_path) and potential_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                    image = Image.open(potential_path).convert("RGB")
+                    self.pasted_image = image
+                    self.image_path_var.set(potential_path)
+
+                else:
+                    messagebox.showerror("Error", f"Clipboard contains a file, but it's not a supported image: {potential_path}")
+                    return
+            else:
+                messagebox.showerror("Error", "No image found in clipboard.")
+                return
+
+            # If edge detection is enabled, update preview
+            if hasattr(self, 'edge_detection_mode') and self.edge_detection_mode.get():
+                self.update_edge_preview()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to paste image: {e}")
+
+    def load_image_from_url(self):
+        # Try get url from Text block
+        url = self.image_path_var.get().strip()
+        if not url:
+            # Try to get image file path from clipboard
+            clipboard_text = self.app.root.clipboard_get()
+            
+            if clipboard_text.startswith("http://") or clipboard_text.startswith("https://"):
+                url = clipboard_text
+                self.image_path_var.set(url)
+            else:
+                messagebox.showwarning("Input Required", "Please enter a valid image URL or copy an image path to the clipboard.")
+                return
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            image_data = io.BytesIO(response.content)
+            image = Image.open(image_data).convert("RGB")
+            self.pasted_image = image
+            self.image_path_var.set(url)
+            if hasattr(self, 'edge_detection_mode') and self.edge_detection_mode.get():
+                self.update_edge_preview()
+            messagebox.showinfo("Success", f"URL:\n{url} Loaded Successfully?")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load image from URL:\n{e}")
             
     def update_progress(self, value):
         self.progress_var.set(value)
@@ -243,32 +307,52 @@ class ImageToEmojiUI:
         self.height_entry.config(state=tk.NORMAL)
         
     def start_conversion(self):
-        image_path = self.image_path_var.get()
-        if not image_path or not os.path.exists(image_path):
-            messagebox.showerror("Error", "Please select a valid image file.")
-            return
-            
         # Check if Slack emojis are available
         if not self.app.slack_emojis:
             messagebox.showerror("Error", "No Slack emojis loaded. Please load Slack emojis first.")
             return
-            
+
         target_width, target_height = self.get_target_dimensions()
         if target_width is None or target_height is None:
             return
-        
+
+        # Try to retrieve the image from the appropriate source
+        image = None
+        source = self.image_path_var.get().strip()
+
+        if hasattr(self, "pasted_image"):
+            image = self.pasted_image
+        elif source.startswith("http://") or source.startswith("https://"):
+            try:
+                response = requests.get(source)
+                response.raise_for_status()
+                image = Image.open(io.BytesIO(response.content)).convert("RGB")
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not load image from URL:\n{e}")
+                return
+        elif os.path.exists(source):
+            try:
+                image = Image.open(source).convert("RGB")
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open image file:\n{e}")
+                return
+        else:
+            messagebox.showerror("Error", "Please select, paste, or load a valid image.")
+            return
+
         # We just update the preview one last time before actually generating anything
         self.update_edge_preview()
-            
+
         # Disable controls during processing
         self.disable_controls()
         self.status_var.set("Initializing conversion...")
         self.progress_var.set(0)
-        
+
         # Initialize converter
         self.converter = ImageToEmojiConverter(
             slack_emojis=self.app.slack_emojis,
             slack_emojis_version=self.app.slack_emojis_version,
+            background_color=self.app.bg_color_entry.get(),
             max_width=35,
             max_height=45,
             progress_callback=self.update_progress,
@@ -276,59 +360,51 @@ class ImageToEmojiUI:
         )
 
         self.converter.set_resampling_mode(self.resampling_var.get())
-
-        #self.converter.disable_edge_detection = self.disable_edge_detection_var.get()
-
-        # target_pattern_weight, target_color_weight = self.get_target_weights()
-        # if target_pattern_weight is None or target_color_weight is None:
-        #     return
-        # else:
-        #     self.converter.pattern_weight = target_pattern_weight
-        #     # TODO: add unrestricted mode where you can enter any value for weights
-        #     self.converter.color_weight = 1.0 - target_pattern_weight
-
         self.converter.emoji_precomputer.exclude_gifs = self.exclude_gifs_var.get()
-        
-        # Set the pixel art mode and edge detection threshold
+
+        # Set edge detection options if enabled
         edge_detection_enabled = self.edge_detection_mode.get()
         self.converter.enable_edge_detection_mode(edge_detection_enabled)
-        
-        # Set edge detection threshold if pixel art mode is enabled
         if edge_detection_enabled and hasattr(self, 'tolerance_var'):
-            edge_tolerance = self.tolerance_var.get()
-            self.converter.edge_detection_threshold = edge_tolerance
-        
+            self.converter.edge_detection_threshold = self.tolerance_var.get()
+
         # Run conversion in a separate thread to keep UI responsive
         thread = threading.Thread(
             target=self.process_image_thread,
-            args=(image_path, target_width, target_height),
+            args=(image, target_width, target_height),
             daemon=True
         )
         thread.start()
 
-    def process_image_thread(self, image_path, width, height):
+    def process_image_thread(self, image_input, width, height):
         """Background thread for image processing"""
         try:
             self.status_var.set("Analyzing Slack emoji colors... (This can take a minute when running for the first time)")
             self.converter.emoji_precomputer.precompute_all_emoji_colors()
-            
+
             self.status_var.set("Processing image...")
+
+            # Handle both file path or PIL.Image input
+            if isinstance(image_input, Image.Image):
+                img = image_input
+            else:
+                img = Image.open(image_input).convert('RGB')
+
             emoji_grid = self.converter.process_image(
-                image_path, 
-                width, #if not self.keep_aspect_var.get() else None,
-                height #if not self.keep_aspect_var.get() else None
+                img,
+                width,
+                height
             )
-            
+
             self.status_var.set("Creating grid display...")
             # Convert to application format
             display_grid, emoji_mapping = self.converter.emoji_grid_to_display(emoji_grid)
             
             # Final step - update UI on main thread
             self.parent.after(0, lambda: self.finalize_conversion(display_grid, emoji_mapping))
-            
+
         except Exception as e:
             self.handle_error(str(e))
-            #self.parent.after(0, lambda: self.handle_error(str(e)))
     
     def handle_error(self, error_message):
         messagebox.showerror("Conversion Error", f"An error occurred during conversion:\n{error_message}")

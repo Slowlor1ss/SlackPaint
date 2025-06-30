@@ -14,7 +14,7 @@ import json
 from io import BytesIO
 import urllib.request
 
-__version__ = "v0.2.1-beta"
+__version__ = "v0.2.2-beta"
 
 def check_for_update():
     updater = Updater(__version__)
@@ -54,14 +54,34 @@ class EmojiGridApp:
         self.slack_emojis_version = None # To store the last modified date of the file used to load slack emojis, used to check the "version"
         self.slack_emojis = None  # To store the loaded Slack emoji mapping
 
-        # --- Canvas collapsible section ---
         self.canvas_container = tk.Frame(root)
         self.canvas_container.pack(fill="both", expand=True)
+        # Container for the top bar (left + right widgets)
+        self.top_bar = tk.Frame(self.canvas_container)
+        self.top_bar.pack(fill="x")
 
+        # --- Canvas collapsible section ---
+        # Left-aligned toggle button
         self.toggle_canvas_button = tk.Button(
-            self.canvas_container, text="▼ Hide Canvas", command=self.toggle_canvas
+            self.top_bar, text="▼ Hide Canvas", command=self.toggle_canvas
         )
-        self.toggle_canvas_button.pack(anchor="w")
+        self.toggle_canvas_button.pack(side="left")
+
+        # --- Background colour section ---
+        self.bg_color_entry = tk.Entry(self.top_bar, width=12)
+        self.bg_color_entry.insert(0, "#1a1d21")  # Default value
+        self.bg_color_entry.pack(side="right")
+        tk.Label(self.top_bar, text="Background Color:").pack(side="right")
+
+        # Add help icon
+        help_icon = tk.Label(self.top_bar, text="?", font=("Arial", 8), 
+                            bg="#4a7a8c", fg="white", width=1, height=1,
+                            relief="raised", cursor="question_arrow")
+        help_icon.pack(side="right", padx=1)
+        
+        help_text = ("This allows you to set the background colour of emojis, the image to emoji feature will use this so it knows what to intrepret transparency as, currently set to slack dark mode backgound color\
+                     \n\nNOTE!: this will only have a effect on the image generation if you run for the first time or delete your cache (emoji_feature_cache.pkl)")
+        ImageToEmojiUI.create_tooltip(help_icon, help_text)
 
         # -- Canvas scrolling --
 
@@ -70,7 +90,7 @@ class EmojiGridApp:
         self.canvas_frame.pack(fill="both", expand=True)
 
         # Initially create canvas without scrollbars
-        self.canvas = tk.Canvas(self.canvas_frame, highlightthickness=0)
+        self.canvas = tk.Canvas(self.canvas_frame, highlightthickness=0, bg=self.bg_color_entry.get())
 
         # Create scrollbars
         self.v_scroll = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.canvas.yview)
@@ -881,7 +901,7 @@ class EmojiGridApp:
                 if isinstance(fill, str):
                     self.canvas.itemconfig(self.rects[(r, c)], fill=fill)
                 else:
-                    self.canvas.itemconfig(self.rects[(r, c)], fill="white")
+                    self.canvas.itemconfig(self.rects[(r, c)], fill=self.bg_color_entry.get())
                     img_id = self.canvas.create_image(c * self.cell_size, r * self.cell_size, anchor="nw", image=fill)
                     self.canvas_images[(r, c)] = img_id
 
@@ -919,7 +939,7 @@ class EmojiGridApp:
                 if isinstance(color, str):
                     rect = self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
                 else:
-                    rect = self.canvas.create_rectangle(x1, y1, x2, y2, fill="white", outline="gray")
+                    rect = self.canvas.create_rectangle(x1, y1, x2, y2, fill=self.bg_color_entry.get(), outline="gray")
                     img_id = self.canvas.create_image(x1, y1, anchor="nw", image=color)
                     self.canvas_images[(r, c)] = img_id
                 self.rects[(r, c)] = rect
@@ -979,7 +999,7 @@ class EmojiGridApp:
             if isinstance(fill, str):
                 self.canvas.itemconfig(self.rects[(row, col)], fill=fill)
             else:
-                self.canvas.itemconfig(self.rects[(row, col)], fill="white")
+                self.canvas.itemconfig(self.rects[(row, col)], fill=self.bg_color_entry.get())
                 img_id = self.canvas.create_image(col * self.cell_size, row * self.cell_size, anchor="nw", image=fill)
                 self.canvas_images[(row, col)] = img_id
 

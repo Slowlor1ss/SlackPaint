@@ -10,7 +10,7 @@ from EmojiPrecomputer import EmojiPrecomputer
 
 class ImageToEmojiConverter:
     
-    def __init__(self, slack_emojis, slack_emojis_version, progress_callback, status_label_callback, max_width=35, max_height=45):
+    def __init__(self, slack_emojis, slack_emojis_version, background_color, progress_callback, status_label_callback, max_width=35, max_height=45):
         self.max_width = max_width
         self.max_height = max_height
         self.progress_callback = progress_callback
@@ -22,7 +22,7 @@ class ImageToEmojiConverter:
         #self.disable_edge_detection = False 
         self.resampling_mode = Image.Resampling.NEAREST
 
-        self.emoji_precomputer = EmojiPrecomputer(slack_emojis, slack_emojis_version, self.progress_callback)
+        self.emoji_precomputer = EmojiPrecomputer(slack_emojis, slack_emojis_version, background_color, self.progress_callback)
         
     def set_resampling_mode(self, resampling_mode):
         if(resampling_mode == "Nearest"):
@@ -190,14 +190,14 @@ class ImageToEmojiConverter:
                     
         return neighbors
     
-    def process_image(self, image_path, width_percentage=None, height_percentage=None):
+    def process_image(self, img, width_percentage=None, height_percentage=None):
         """Convert an image to a grid of emoji names"""
         start_time = time.time()
 
         self.emoji_precomputer.reset_cache()
         
         # Open and resize the image
-        img = Image.open(image_path).convert('RGB')
+        # img = Image.open(image_path).convert('RGB')
         
         # Calculate the target dimensions
         width, height = img.size
