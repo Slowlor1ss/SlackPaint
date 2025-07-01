@@ -7,7 +7,7 @@ import os
 import io
 import time
 import queue
-import requests
+import urllib.request
 
 from ImageToEmojiConverter import ImageToEmojiConverter
 
@@ -243,15 +243,17 @@ class ImageToEmojiUI:
                 return
 
         try:
-            response = requests.get(url)
-            response.raise_for_status()
-            image_data = io.BytesIO(response.content)
-            image = Image.open(image_data).convert("RGB")
+            with urllib.request.urlopen(url) as response:
+                if response.status != 200:
+                    raise Exception(f"HTTP Error: {response.status}")
+                image_data = io.BytesIO(response.read())
+                image = Image.open(image_data).convert("RGB")
+
             self.pasted_image = image
             self.image_path_var.set(url)
             if hasattr(self, 'edge_detection_mode') and self.edge_detection_mode.get():
                 self.update_edge_preview()
-            messagebox.showinfo("Success", f"URL:\n{url} Loaded Successfully?")
+            messagebox.showinfo("Success", f"URL:\n{url} Loaded Successfully")
         except Exception as e:
             messagebox.showerror("Error", f"Could not load image from URL:\n{e}")
             
@@ -324,9 +326,11 @@ class ImageToEmojiUI:
             image = self.pasted_image
         elif source.startswith("http://") or source.startswith("https://"):
             try:
-                response = requests.get(source)
-                response.raise_for_status()
-                image = Image.open(io.BytesIO(response.content)).convert("RGB")
+                with urllib.request.urlopen(source) as response:
+                    if response.status != 200:
+                        raise Exception(f"HTTP Error: {response.status}")
+                    data = response.read()
+                    image = Image.open(io.BytesIO(data)).convert("RGB")
             except Exception as e:
                 messagebox.showerror("Error", f"Could not load image from URL:\n{e}")
                 return
