@@ -12,6 +12,7 @@
   - [Drawing patterns](#drawing-patterns)
 - [How to import Slack emojis](#how-to-import-slack-emojis)
 - [How can I make these mosaics/pixel art out of emojis?](#how-can-i-make-these-mosaicspixel-art-out-of-emojis)
+- [How to import Discord emojis](how-to-import-discord-emojis)
 
 </details>
 
@@ -98,4 +99,3 @@ From here, you will need to:
 
 After doing these steps, you should be able to add Discord emojis by clicking the "Add Slack Emoji" button and picking what emoji you want to draw.
 Doing this will also allow you to use the Image to Emoji feature. (Again only really useful for small art or Nitro users (Don't complain at me, complain at Discord))
-<br><img src="https://github.com/user-attachments/assets/254830ce-612d-404d-9635-94a3ed6e66d7" width="50%"/><br>
