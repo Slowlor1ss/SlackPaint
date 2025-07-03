@@ -14,7 +14,7 @@ import json
 from io import BytesIO
 import urllib.request
 
-__version__ = "v0.2.2-beta"
+__version__ = "v0.2.3-beta"
 
 def check_for_update():
     updater = Updater(__version__)
@@ -778,8 +778,26 @@ class EmojiGridApp:
             messagebox.showinfo("Limit reached", f"Maximum of {MAX_EMOJIS} emojis allowed.")
             return False
         try:
+            # First try normal fetch
             with urllib.request.urlopen(url) as response:
                 img_data = response.read()
+        except Exception as e1:
+            try:
+                # If normal fetch fails, try with User-Agent header
+                # to try and get pasts discord forrbiden error
+                req = urllib.request.Request(url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+                })
+                with urllib.request.urlopen(req) as response:
+                    img_data = response.read()
+                # When were in this code path were most likeley using a discord json 
+                # so well change the default 0 emoji to a black square
+                self.emoji_mappings[0] = (":black_large_square:", "#ffffff")
+            except Exception as e2:
+                messagebox.showerror("Error", f"Failed to load emoji image: {url}\n{e2}")
+                return False
+        try:
             img = Image.open(BytesIO(img_data)).resize((self.cell_size, self.cell_size), Image.Resampling.LANCZOS)
             tk_img = ImageTk.PhotoImage(img)
             self.emoji_mappings[self.emoji_count] = (f":{name}:", tk_img)
@@ -805,7 +823,7 @@ class EmojiGridApp:
 
     def finalize_add_slack_emoji_to_palette(self, img, name):
         if img is None:
-            # Create a fallback image (100x100, debug purple)
+            # Create a fallback image (debug purple)
             img = Image.new('RGB', (25, 25), color=(255, 0, 255)) 
         tk_img = ImageTk.PhotoImage(img)
         self.emoji_mappings[self.emoji_count] = (f":{name}:", tk_img)
@@ -1014,7 +1032,20 @@ class EmojiGridApp:
 
     def export(self):
         self.update_palette()
-        output = "\n".join("".join(self.emoji_mappings[cell][0] for cell in row) for row in self.grid)
+        fallback_emoji = "⬛"
+        missing_keys = set()
+        output = "\n".join(
+            "".join(
+                self.emoji_mappings[cell][0]
+                if cell in self.emoji_mappings
+                else (missing_keys.add(cell) or fallback_emoji)
+                for cell in row
+            )
+            for row in self.grid
+        )
+        # Log missing keys if any
+        if missing_keys:
+            print(f"[Export Warning] Missing emoji mappings for cells: {sorted(missing_keys)}")
         self.root.clipboard_clear()
         self.root.clipboard_append(output)
         # --- Export confirmation message ---

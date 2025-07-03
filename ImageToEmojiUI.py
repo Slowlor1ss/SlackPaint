@@ -44,9 +44,12 @@ class ImageToEmojiUI:
         self.image_path_entry = tk.Entry(image_frame, textvariable=self.image_path_var, width=30)
         self.image_path_entry.pack(side="left", fill="x", expand=True, padx=5)
         tk.Button(image_frame, text="Browse...", command=self.browse_image).pack(side="left")
-
-        tk.Button(image_frame, text="Paste", command=self.paste_image_from_clipboard).pack(side="left", padx=2)
-        tk.Button(image_frame, text="Load URL", command=self.load_image_from_url).pack(side="left", padx=2)
+        clipboard_button = tk.Button(image_frame, text="Clipboard", command=self.paste_image_from_clipboard)
+        clipboard_button.pack(side="left", padx=5)
+        tk.Button(image_frame, text="Load URL", command=self.load_image_from_url).pack(side="left", padx=0)
+        
+        clipboard_help_text = ("This allows you to paste images from your clipboard, like screenshots or copied images.")
+        ImageToEmojiUI.create_tooltip(clipboard_button, clipboard_help_text)
         
         # Size frame
         size_frame = tk.Frame(self.main_frame)
@@ -420,7 +423,6 @@ class ImageToEmojiUI:
         try:
             # Update the main application's grid with our new emoji grid
             self.apply_to_app(display_grid, emoji_mapping)
-            
             self.status_var.set("Conversion complete!")
             self.enable_controls()
             
@@ -554,8 +556,9 @@ class ImageToEmojiUI:
         # but we loop like this beacuse otherwise the order is wrong and images get places in the wrong place
         for emoji_name, idx in emoji_mapping.items():
             name_without_colons = emoji_name.strip(':')
-            self.app.finalize_add_slack_emoji_to_palette(images_list[name_without_colons], name_without_colons)
-        
+            img = images_list.get(name_without_colons)
+            self.app.finalize_add_slack_emoji_to_palette(img, name_without_colons)
+
         # Update the grid with emoji indices
         self.app.grid = display_grid
         
