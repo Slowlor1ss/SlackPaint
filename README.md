@@ -1,6 +1,10 @@
 <details open>
 <summary><strong>Table of Contents</strong></summary>
 
+- [FAQ](#how-do-i-send-my-beautiful-creation-to-other-people)
+  - [How do I send my beautiful creation to other people?](#how-do-i-send-my-beautiful-creation-to-other-people)
+  - [When I paste my message not all emojis load in!](#when-i-paste-my-message-not-all-emojis-load-in)
+  - [My message is too big to be sent over Slack/Discord!](#my-message-is-too-big-to-be-sent-over-slackdiscord)
 - [How to run?](#how-to-run)
   - [Option 1 - install the .exe](#option-1---install-the-exe---quickest-and-easiest)
   - [Option 2 - Run the Python program yourself](#option-2---run-the-python-program-yourself)
@@ -8,6 +12,28 @@
   - [Drawing patterns](#drawing-patterns)
 - [How to import Slack emojis](#how-to-import-slack-emojis)
 - [How can I make these mosaics/pixel art out of emojis?](#how-can-i-make-these-mosaicspixel-art-out-of-emojis)
+
+</details>
+
+---
+<details open>
+<summary><h2>FAQ</h2></summary>
+
+### How do I send my beautiful creation to other people?
+You can copy whatever you just drew/created by pressing the "Copy" button at the bottom, then you can simply paste your creation as a message.
+
+### When I paste my message not all emojis load in!
+This is a comment issue when sending a lot of different emojis in one message, you can make all emojis load by either re-pasting the message, or switching to another chat and coming back.
+
+### My message is too big to be sent over Slack/Discord!
+Both Slack and Discord, (and probably any other chat system) have a limit to how many characters you can send in one message.<br>
+Since emojis in these applications are made of :emoji_name: **a single emoji does not equal one character!** And thus, you might reach this limit a lot sooner than you think. There isn't really any way to get around this (**but there is a small trick for Salck I will mention at the end of this paragraph**), there are a few ways to shorten your message:
+- One thing you can do is scale down your message. If this is a recreation of an image, you can use the width and height settings to scale the recreation. If you are using Discord, unless you have Discord Nitro, most likely image creation won't be a viable feature due to the small message limit.
+- You can also shave off part of your message, maybe you have some empty space at the end of your message, you can simply cut off
+- use different emojis, maybe you have some shorter named emojis you can use instead, all emoji's even if already placed, can be changed by adjusting their associated text box or clicking on the emoji next to the text box and swapping it.<be>
+
+<strong>As for the trick to get around part of Slacks message limit:</strong><br>
+You can partially get around slacks message limit by sending any message to a person and then editing this message, which will seemingly double the amount of characters you can send in one message.
 
 </details>
 
