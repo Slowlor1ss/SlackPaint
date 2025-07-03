@@ -32,7 +32,7 @@ Since emojis in these applications are made of :emoji_name: **a single emoji doe
 - You can also shave off part of your message, maybe you have some empty space at the end of your message, you can simply cut off
 - use different emojis, maybe you have some shorter named emojis you can use instead, all emoji's even if already placed, can be changed by adjusting their associated text box or clicking on the emoji next to the text box and swapping it.<be>
 
-<strong>As for the trick to get around part of Slacks message limit:</strong><br>
+<strong>As for the trick to get around part of Slack's message limit:</strong><br>
 You can partially get around slacks message limit by sending any message to a person and then editing this message, which will seemingly double the amount of characters you can send in one message.
 
 </details>
@@ -41,14 +41,14 @@ You can partially get around slacks message limit by sending any message to a pe
 
 ### Option 1 - install the .exe - (quickest and easiest)
 You can simply navigate to the release tab or go [here](https://github.com/Slowlor1ss/SlackPaint/releases)
-and istall the SlackPaint.exe this one file is all you need to run the program.
+and install the SlackPaint.exe, this one file is all you need to run the program.
 
 ---
 
 ### Option 2 - Run the Python program yourself
-For this option, you will need to install/have installed Python
-you can simple run the `install_dependencies.bat` to install all necessery libraries
-and then lauch the the python file from comnsole using the command `python (C:\path\to\)SlackPaint.py`
+For this option, you will need to install/have installed Python and (preferably) added to system variables (if you don't know how to install Python, I recommend simply running the .exe)
+You can simply run the `install_dependencies.bat` to install all necessary libraries
+and then launch the Python file from the console using the command `python (C:\path\to\)SlackPaint.py`
 
 # How to use this tool
 
@@ -63,8 +63,6 @@ This tool simply allows you to paint in a grid and export that grid in text form
 
 # How to import Slack emojis
 
-(Note: unfortunately for now I only have a simple way of importing Slack emojis, not for any other platform like Discord, but it is possible for you to add this functionality yourself.)
-
 To import slack emojis, you will need to naviage to https://YourSlackServer.slack.com/customize/emoji or use the "**customise workspace**" button in your slack server.
 <br><img src="https://github.com/user-attachments/assets/aa9b8c22-080e-4fa9-ad43-8891d593ca12" width="40%"/><br>
 
@@ -76,11 +74,28 @@ From here, you will need to:
 
 After doing these steps, you should be able to add Slack emojis by clicking the "Add Slack Emoji" button and picking what emoji you want to draw.
 Doing this will also allow you to use the Image to Emoji feature.
+<br><img src="https://github.com/user-attachments/assets/254830ce-612d-404d-9635-94a3ed6e66d7" width="50%"/><br>
+
 
 # How can I make these mosaics/pixel art out of emojis?
 
-To use the Image to Emoji feature you will first need to follow the steps in [How to import Slack emojis](#how-to-import-slack-emojis)
-after you've done this you will be able to use the Image to Emoji button, this should pop up a new window where you can change setting for your mosaic and upload a image that you want to recreate.
+To use the Image to Emoji feature, you will first need to follow the steps in [How to import Slack emojis](#how-to-import-slack-emojis)
+after you've done this you will be able to use the Image to Emoji button, this should pop up a new window where you can change setting for your mosaic and upload an image that you want to recreate.
 This might take a minute to generate first time you use it depending on the amount of emojis you have, after the first time it should go relativly fast.
+<br><img src="https://github.com/user-attachments/assets/edc86048-0040-427c-9d83-a07bba97ea7a" width="50%"/><be>
 
+# How to import Discord emojis
 
+(Note: unless you have discord Nitro don't expect to be sending cool pixel art using the tool over discord, due to the small message limit your art will be very limited)
+
+To import discord emojis, you will need to simply open discord in the browser and log in to your account that's in the server you want to scrape the emojis from.
+From here, you will need to:
+1. Open DevTools (F12 or Ctrl+Shift+I)
+2. In the Console tab, paste the code from [this](./ScriptToGetDiscordEmojis.js) file and run it (press enter or "run" button) you can cancel this process as soon as the scrolling passed the server you want to scrape emojis from.
+3. Now you should see a window that allows you to choose what server you want to scrape the emojis from, or the "all" option if you want every server's emoji (only useful for Nitro users)
+4. Once you have selected a server it will scroll through that server's emojis and download the JSON file once done
+5. Use this file when clicking "Add Slack Emoji" (I know I need to rename this button) in Slack Paint (and the tool...)
+
+After doing these steps, you should be able to add Discord emojis by clicking the "Add Slack Emoji" button and picking what emoji you want to draw.
+Doing this will also allow you to use the Image to Emoji feature. (Again only really useful for small art or Nitro users (Don't complain at me, complain at Discord))
+<br><img src="https://github.com/user-attachments/assets/254830ce-612d-404d-9635-94a3ed6e66d7" width="50%"/><br>
