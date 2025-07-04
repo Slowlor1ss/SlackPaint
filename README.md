@@ -5,6 +5,7 @@
   - [How do I send my beautiful creation to other people?](#how-do-i-send-my-beautiful-creation-to-other-people)
   - [When I paste my message not all emojis load in!](#when-i-paste-my-message-not-all-emojis-load-in)
   - [My message is too big to be sent over Slack/Discord!](#my-message-is-too-big-to-be-sent-over-slackdiscord)
+  - [Why does converting an image take so long the first time?](why-does-converting-an-image-take-so-long-the-first-time)
 - [How to run?](#how-to-run)
   - [Option 1 - install the .exe](#option-1---install-the-exe---quickest-and-easiest)
   - [Option 2 - Run the Python program yourself](#option-2---run-the-python-program-yourself)
@@ -35,6 +36,10 @@ Since emojis in these applications are made of :emoji_name: **a single emoji doe
 
 <strong>As for the trick to get around part of Slack's message limit:</strong><br>
 You can partially get around slacks message limit by sending any message to a person and then editing this message, which will seemingly double the amount of characters you can send in one message.
+
+### Why does converting an image take so long the first time?
+As we don't actually save/download any picture locally, we instead make some web request to get the data of the image, Slack/Discord doesn't like it when we make a lot of rapid requests in case you have a lot of emojis, so we get rate-limited... Hence the wait time on the first go, luckily we save all the data we need from the images (which is pretty much only the dominant colours) so we only have to run this step once.
+
 
 </details>
 
