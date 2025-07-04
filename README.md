@@ -54,12 +54,12 @@ As we don't actually save/download any picture locally, we instead make some web
 
 ### Option 1 - install the .exe - (quickest and easiest)
 You can simply navigate to the release tab or go [here](https://github.com/Slowlor1ss/SlackPaint/releases)
-and install the SlackPaint.exe, this one file is all you need to run the program.
+and install the SlackPaint.zip, this one zip folder is all you need to run the program. (You can right-click to extract files)
 
 ---
 
 ### Option 2 - Run the Python program yourself
-For this option, you will need to install/have installed Python and (preferably) added to system variables (if you don't know how to install Python, I recommend simply running the .exe)
+For this option, you will need to install/have installed Python and (preferably) added to system variables (if you don't know how to install Python, I recommend simply running the .exe (installing the .zip from releases))
 You can simply run the `install_dependencies.bat` to install all necessary libraries
 and then launch the Python file from the console using the command `python (C:\path\to\)SlackPaint.py`
 
