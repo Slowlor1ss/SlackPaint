@@ -1,3 +1,10 @@
+<h1 align="center">Slack Paint</h1>
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/03d4492c-2b95-4c2a-a89f-ca5ebd0976ad" alt="Slack Paint Screenshot" width="600"/>
+</p>
+
+
 <details open>
 <summary><strong>Table of Contents</strong></summary>
 
