@@ -14,7 +14,7 @@ import json
 from io import BytesIO
 import urllib.request
 
-__version__ = "v0.2.3-beta"
+__version__ = "v0.2.4-beta"
 
 def check_for_update():
     updater = Updater(__version__)
@@ -235,17 +235,20 @@ class EmojiGridApp:
 
         # --- Grid size controls ---
         grid_size_frame = tk.Frame(self.settings_frame)
-        grid_size_frame.pack()
+        grid_size_frame.pack(pady=5)
         tk.Label(grid_size_frame, text="Rows").pack(side="left")
         self.row_entry = tk.Entry(grid_size_frame, width=5)
         self.row_entry.insert(0, str(self.rows))
-        self.row_entry.pack(side="left")
+        self.row_entry.pack(side="left", padx=5)
         tk.Label(grid_size_frame, text="Cols").pack(side="left")
         self.col_entry = tk.Entry(grid_size_frame, width=5)
         self.col_entry.insert(0, str(self.cols))
-        self.col_entry.pack(side="left")
-        tk.Button(grid_size_frame, text="Update Grid", command=self.update_grid_size).pack(side="left", padx=5)
-        tk.Button(grid_size_frame, text="Clear Grid", command=self.confirm_reset_grid).pack(side="left", padx=5)
+        self.col_entry.pack(side="left", expand=True)
+        tk.Button(grid_size_frame, text="Update Grid", command=self.update_grid_size).pack(side="left", padx=2.5)
+        tk.Button(grid_size_frame, text="Clear Grid", command=self.confirm_reset_grid).pack(side="left", padx=2.5)
+        grid_buttons_frame = tk.Frame(self.settings_frame)
+        grid_buttons_frame.pack(pady=2.5)
+        tk.Button(grid_buttons_frame, text="Clear Emoji Entries", command=self.comfirm_reset_emoji_entries).pack(side="left", padx=2.5)
 
         # --- Scrollable emoji mapping panel ---
         self.mapping_container = tk.Frame(self.settings_frame)
@@ -320,7 +323,10 @@ class EmojiGridApp:
 
         button_frame2 = tk.Frame(self.settings_frame)
         button_frame2.pack()
-        tk.Button(button_frame2, text="Export", command=self.export).pack(side="left", padx=2)
+        copy_button = tk.Button(button_frame2, text="Copy", command=self.export)
+        copy_button.pack(side="left", padx=2)
+        copy_help_text = ("This will copy whatever you have drawn above to your clipboard so you can send/paste it as a message over Slack/Discord.")
+        ImageToEmojiUI.create_tooltip(copy_button, copy_help_text)
         tk.Button(button_frame2, text="Save", command=self.save).pack(side="left", padx=2)
         tk.Button(button_frame2, text="Load", command=self.load).pack(side="left", padx=2)
 
@@ -376,6 +382,21 @@ class EmojiGridApp:
             # because when converting image to emoji's often idx 0 changes to an image making the gridlines dissapear (intended)
             self.emoji_mappings[0] = (":_:", "#ffffff") 
             self.reset_grid(initialize=True)
+
+    def comfirm_reset_emoji_entries(self):
+        if messagebox.askyesno("Confirm Clear", "Are you sure you want to remove all currently added emojis (list below)?\nTHIS WILL ALSO CLEAR THE GRID!"):
+
+            # Reset emoji mappings and related state
+            self.emoji_mappings = emoji_palette.copy()
+            self.emoji_count = len(self.emoji_mappings)
+            self.slack_emoji_indices.clear()
+
+            # Clear the grid to idx 0
+            self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+
+            # # Rebuild UI and visuals
+            self.build_emoji_entries()
+            self.refresh_grid_colors()
 
     def _on_mousewheel(self, event):
         self.scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
@@ -638,9 +659,10 @@ class EmojiGridApp:
     def update_selection_highlight(self):
         for i, frame in self.emoji_frames.items():
             if i == self.current_color:
-                frame.config(highlightbackground="lightgray", highlightthickness=1, relief="flat")
+                #frame.config(highlightbackground="red", highlightthickness=2, relief="flat") #lightgray
+                frame.config(highlightbackground="#c8c8c8", background="#e6e6e6", highlightthickness=2, relief="flat")
             else:
-                frame.config(highlightthickness=0, relief="flat")
+                frame.config(background=frame.master.cget("background"), highlightthickness=0, relief="flat")
 
     def add_image(self):
         # TODO: this is prone to bugs we have duplicated code path = filedialog.askopenfilename... make this a function or something

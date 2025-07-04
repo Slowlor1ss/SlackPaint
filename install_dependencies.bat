@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set PACKAGES=numpy pillow
+set PACKAGES=numpy pillow aiohttp
 
 echo The following Python packages will be installed:
 for %%P in (%PACKAGES%) do (

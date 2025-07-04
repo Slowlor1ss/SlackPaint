@@ -44,7 +44,7 @@ class ImageToEmojiUI:
         self.image_path_entry = tk.Entry(image_frame, textvariable=self.image_path_var, width=30)
         self.image_path_entry.pack(side="left", fill="x", expand=True, padx=5)
         tk.Button(image_frame, text="Browse...", command=self.browse_image).pack(side="left")
-        clipboard_button = tk.Button(image_frame, text="Clipboard", command=self.paste_image_from_clipboard)
+        clipboard_button = tk.Button(image_frame, text="Paste Clipboard", command=self.paste_image_from_clipboard)
         clipboard_button.pack(side="left", padx=5)
         tk.Button(image_frame, text="Load URL", command=self.load_image_from_url).pack(side="left", padx=0)
         
