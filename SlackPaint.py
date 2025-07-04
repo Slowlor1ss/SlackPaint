@@ -14,7 +14,7 @@ import json
 from io import BytesIO
 import urllib.request
 
-__version__ = "v0.2.4-beta"
+__version__ = "v0.2.5-beta"
 
 def check_for_update():
     updater = Updater(__version__)
@@ -143,8 +143,8 @@ class EmojiGridApp:
         max_window_height = int(screen_height * 0.7)
         
         # Calculate max allowed canvas dimensions (capped at when window reaches 70% screen)
-        #max_width = min(self.cols * self.cell_size, max_window_width - self.approxNonCanvasWidth)
-        max_width = self.cols * self.cell_size
+        max_width = min(self.cols * self.cell_size, max_window_width - self.approxNonCanvasWidth)
+        #max_width = self.cols * self.cell_size
         max_height = min(self.rows * self.cell_size, max_window_height - self.approxNonCanvasHeight)
         
         # Check if we need scrollbars (window is getting too big)
